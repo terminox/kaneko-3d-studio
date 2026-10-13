@@ -11,7 +11,8 @@ This is a HITL task that later tickets depend on. Nothing to decide; it just has
 
 Owner checklist:
 - [ ] Install Bambu Studio on this Mac (latest stable).
-- [ ] Export the tuned **R3D PLA Matte** filament profile and the process profile you print clickers with, or find the earlier tuned 3MF. Put the files in `profiles/` in this repo.
+- [ ] **Preferred:** in Bambu Studio *on this Mac* (02.08.02.61), set up an A1 project with the Textured PEI plate, your tuned **R3D PLA Matte** filament and the process you print clickers with. Add any small object and save the project as `profiles/template.3mf`. Per [Bambu 3MF and CLI](03-bambu-3mf-and-cli.md), a GUI-saved project is the only reliable template: tuned values survive reopening and the CLI reads them fully resolved. Don't use a 3MF exported by the CLI.
+- [ ] Also export the tuned filament and process presets into `profiles/` as a backup.
 - [ ] List the filament colors on hand (brand, color name, hex if known) in `profiles/filaments.md`.
 
 Agent checklist (after the owner is done):

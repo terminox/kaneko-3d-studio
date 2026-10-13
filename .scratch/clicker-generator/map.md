@@ -4,7 +4,7 @@ Label: wayfinder:map
 
 ## Destination
 
-A working, local, in-browser clicker generator. The owner enters a Design (Cap Clicker or Block Clicker: Outline, size, Switches, Decorations on any surface, colors) and gets a Bambu-ready 3MF. The 3MF has parts on AMS slots and the tuned R3D PLA Matte Print Profile embedded, and holds one or several Designs per Plate. It prints first time on the A1, with switch fit and text detail set by the owner's own Fit Calibration. It has feature parity with the MakerLab clicker generator and is built clean-room.
+A working, local, in-browser clicker generator. The owner enters a Design (Cap Clicker or Block Clicker: Outline, size, Switches, Decorations on any surface, colors) and gets a Bambu-ready 3MF. The 3MF has each colour part assigned to a filament (matched to AMS slots at print time) and the tuned R3D PLA Matte Print Profile embedded, and holds one or several Designs per Plate. It prints first time on the A1, with switch fit and text detail set by the owner's own Fit Calibration. It has feature parity with the MakerLab clicker generator and is built clean-room.
 
 ## Notes
 
@@ -21,6 +21,7 @@ A working, local, in-browser clicker generator. The owner enters a Design (Cap C
 <!-- one line per closed ticket: [title](link): gist -->
 
 - [Reference generator teardown](issues/01-reference-generator-teardown.md): the parity checklist is Vostok's app (MakerLab identity unconfirmed). Cap Clicker modes have 1–3 Switches; Block Clicker has up to 24 keys. Decorations go on the top surface only. The Fit Test tests stem fit only. It exports a stock profile. Selling with it costs $99 lifetime or a membership.
+- [Bambu 3MF and CLI](issues/03-bambu-3mf-and-cli.md): a five-file project 3MF stamped with the exact Bambu Studio version, built from a GUI-saved template 3MF. The headless CLI with absolute paths validates it via `result.json` (not the exit code). AMS slots are matched by filament at send time and can't be pinned in the file.
 - [Geometry stack gaps](issues/02-geometry-stack-gaps.md): every gap is solvable on manifold-3d. Use opentype.js with the NonZero fill rule for text, parse SVGs on the main thread, and trace PNGs with imagetracerjs. Each colour is a disjoint part. Side Decorations work through transforms or warps; avoid fillets.
 
 ## Not yet specified
@@ -32,7 +33,8 @@ A working, local, in-browser clicker generator. The owner enters a Design (Cap C
 - **Logo and image pipeline details:** PNG tracing quality, background removal, color count. Depends on the geometry stack research and the option catalog.
 - **Side and edge Decoration technique:** text on vertical or curved walls. Depends on the geometry stack research and the option catalog.
 - **Font, icon and tracing-library licensing:** which fonts and icon sets may be bundled and used on Clickers that are sold. Depends on the option catalog's font and icon set. GPL/AGPL tracing and background-removal libraries are fine locally but would block any later hosting (see Geometry stack gaps).
-- **Acceptance run:** a set of representative Designs printed end to end to declare the generator "working".
+- **Bambu Studio updates:** the template 3MF and the version stamp are tied to the installed Bambu Studio version. What happens when it updates (re-save the template, re-run checks) needs deciding once the 3MF writer exists.
+- **Acceptance run:** a set of representative Designs printed end to end to declare the generator "working". Includes the owner opening generated 3MFs in the Bambu Studio GUI to confirm settings and colours survive (the CLI can't check this).
 
 ## Out of scope
 
