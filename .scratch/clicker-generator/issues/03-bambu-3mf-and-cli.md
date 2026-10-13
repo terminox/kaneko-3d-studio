@@ -1,7 +1,7 @@
 # Bambu 3MF and CLI
 
 Type: research
-Status: open
+Status: claimed
 Blocked by: none
 Map: [Clicker Generator](../map.md)
 

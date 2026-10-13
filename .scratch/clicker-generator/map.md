@@ -20,6 +20,8 @@ A working, local, in-browser clicker generator. The owner enters a Design (Cap C
 
 <!-- one line per closed ticket: [title](link): gist -->
 
+- [Geometry stack gaps](issues/02-geometry-stack-gaps.md): every gap is solvable on manifold-3d. Use opentype.js with the NonZero fill rule for text, parse SVGs on the main thread, and trace PNGs with imagetracerjs. Each colour is a disjoint part. Side Decorations work through transforms or warps; avoid fillets.
+
 ## Not yet specified
 
 - **Build sequence:** execution tickets (scaffold, geometry core, Cap Clicker, Block Clicker, Decorations, Fit Test export, 3MF writer, generator screen, Plate batching). These graduate once the anatomy, option catalog, Fit Test, Design file, screen and readiness-check tickets close.
@@ -28,7 +30,7 @@ A working, local, in-browser clicker generator. The owner enters a Design (Cap C
 - **Text and detail limits:** minimum text height and stroke, and emboss depth, as the Fit Calibration results dictate.
 - **Logo and image pipeline details:** PNG tracing quality, background removal, color count. Depends on the geometry stack research and the option catalog.
 - **Side and edge Decoration technique:** text on vertical or curved walls. Depends on the geometry stack research and the option catalog.
-- **Font and icon licensing for sold products:** which fonts and icon sets may be bundled and used on Clickers that are sold. Depends on the option catalog's font and icon set.
+- **Font, icon and tracing-library licensing:** which fonts and icon sets may be bundled and used on Clickers that are sold. Depends on the option catalog's font and icon set. GPL/AGPL tracing and background-removal libraries are fine locally but would block any later hosting (see Geometry stack gaps).
 - **Acceptance run:** a set of representative Designs printed end to end to declare the generator "working".
 
 ## Out of scope

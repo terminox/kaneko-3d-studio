@@ -1,7 +1,7 @@
 # Reference generator teardown
 
 Type: research
-Status: open
+Status: claimed
 Blocked by: none
 Map: [Clicker Generator](../map.md)
 
