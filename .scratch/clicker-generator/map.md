@@ -20,6 +20,7 @@ A working, local, in-browser clicker generator. The owner enters a Design (Cap C
 
 <!-- one line per closed ticket: [title](link): gist -->
 
+- [Reference generator teardown](issues/01-reference-generator-teardown.md): the parity checklist is Vostok's app (MakerLab identity unconfirmed). Cap Clicker modes have 1–3 Switches; Block Clicker has up to 24 keys. Decorations go on the top surface only. The Fit Test tests stem fit only. It exports a stock profile. Selling with it costs $99 lifetime or a membership.
 - [Geometry stack gaps](issues/02-geometry-stack-gaps.md): every gap is solvable on manifold-3d. Use opentype.js with the NonZero fill rule for text, parse SVGs on the main thread, and trace PNGs with imagetracerjs. Each colour is a disjoint part. Side Decorations work through transforms or warps; avoid fillets.
 
 ## Not yet specified
