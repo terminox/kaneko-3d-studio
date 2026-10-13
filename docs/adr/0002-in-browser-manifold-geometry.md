@@ -1,0 +1,3 @@
+# Generate geometry in the browser with manifold-3d
+
+Clicker geometry is built in TypeScript in the browser, using manifold-3d (WASM) running in a web worker, with a three.js preview. We chose it over OpenSCAD (as a desktop Customizer or compiled to WASM) and over OpenCascade-based kernels such as replicad. manifold-3d's boolean operations always produce watertight, manifold meshes, which keeps Switch Pockets and text cut-ins printable. The reference generator proves this stack works for exactly this product. And the same code that runs locally today could later be hosted for customers without a rewrite.
