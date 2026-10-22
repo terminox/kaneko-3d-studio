@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Model Maker</title>
+    <link rel="stylesheet" href="/src/ui/style.css" />
+  </head>
+  <body>
+    <header class="bar">
+      <h1>Model Maker</h1>
+      <label class="model-pick">
+        <span class="sr">Model</span>
+        <select id="model"></select>
+      </label>
+      <button id="open" type="button" class="ghost">Open .scad…</button>
+      <input id="open-file" type="file" accept=".scad" hidden />
+      <span class="spacer"></span>
+      <button id="code" type="button" class="ghost" aria-pressed="false">Code</button>
+      <button id="save-design" type="button" class="ghost">Save design</button>
+      <button id="load-design" type="button" class="ghost">Load design…</button>
+      <input id="load-design-file" type="file" accept=".json" hidden />
+      <button id="export-stl" type="button" class="ghost">STL</button>
+      <button id="export-3mf" type="button" class="primary">Export 3MF</button>
+    </header>
+    <main class="layout">
+      <aside class="panel">
+        <div class="panel-head">
+          <h2 id="title">Customize</h2>
+          <button id="reset" type="button" class="ghost small">Reset</button>
+        </div>
+        <form id="params" autocomplete="off" onsubmit="return false"></form>
+      </aside>
+      <section class="stage">
+        <div id="viewport" class="viewport"></div>
+        <div class="stage-top">
+          <select id="target" aria-label="What to preview"></select>
+          <span id="status" class="status" role="status"></span>
+        </div>
+        <div id="size" class="size"></div>
+        <details class="console" id="console-box">
+          <summary>Console</summary>
+          <pre id="console"></pre>
+        </details>
+        <div id="code-pane" class="code-pane" hidden>
+          <textarea id="code-text" spellcheck="false" aria-label="OpenSCAD source"></textarea>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="/src/ui/main.ts"></script>
+  </body>
+</html>

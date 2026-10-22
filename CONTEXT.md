@@ -75,3 +75,19 @@ _Avoid_: calibration print, tolerance test, coupon set
 **Fit Calibration**:
 The clearance and detail values chosen from a Fit Test, applied as defaults to every Design.
 _Avoid_: tolerances, offsets, fit settings
+
+### Model Maker
+
+**Model Maker**:
+The local tool that turns an OpenSCAD script into a form, a preview and a Bambu-ready 3MF, like MakerWorld's Parametric Model Maker. It is separate from the clicker generator.
+_Avoid_: customizer, PMM (that is MakerWorld's tool)
+
+**Parametric Model**:
+An OpenSCAD script written for the Model Maker, whose Customizer comments define its Parameters (for example the name keychain).
+_Avoid_: template, script, scad
+
+**Parameter**:
+One value a Parametric Model exposes in the form, such as a name, a size, a colour or a font.
+_Avoid_: option, setting, variable
+
+A Parametric Model's `mw_plate_N()` modules each become one Plate in the exported 3MF. Its colours become separate parts on separate filaments, as with Decorations.

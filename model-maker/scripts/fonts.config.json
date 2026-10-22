@@ -1,0 +1,30 @@
+{
+  "_comment": "Google Fonts families bundled into the model maker. All are SIL OFL, so printed products made with them can be sold.",
+  "families": [
+    { "family": "Nunito", "weights": [400, 700, 900] },
+    { "family": "Poppins", "weights": [400, 700, 900] },
+    { "family": "Roboto", "weights": [400, 700, 900] },
+    { "family": "Montserrat", "weights": [400, 700, 900] },
+    { "family": "Fredoka", "weights": [400, 700] },
+    { "family": "Baloo 2", "weights": [400, 800] },
+    { "family": "Comfortaa", "weights": [400, 700] },
+    { "family": "Anton", "weights": [400] },
+    { "family": "Bebas Neue", "weights": [400] },
+    { "family": "Passion One", "weights": [400, 700] },
+    { "family": "Titan One", "weights": [400] },
+    { "family": "Luckiest Guy", "weights": [400] },
+    { "family": "Bungee", "weights": [400] },
+    { "family": "Righteous", "weights": [400] },
+    { "family": "Chewy", "weights": [400] },
+    { "family": "Lobster", "weights": [400] },
+    { "family": "Pacifico", "weights": [400] },
+    { "family": "Sansita", "weights": [400, 800] },
+    { "family": "Dancing Script", "weights": [400, 700] },
+    { "family": "Great Vibes", "weights": [400] },
+    { "family": "Permanent Marker", "weights": [400] },
+    { "family": "Mochiy Pop One", "weights": [400] },
+    { "family": "Kanit", "weights": [400, 700, 900] },
+    { "family": "Prompt", "weights": [400, 700] },
+    { "family": "Mitr", "weights": [400, 700] }
+  ]
+}

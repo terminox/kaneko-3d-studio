@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.cache/
+out/
+public/openscad/
+public/fonts/
+public/libs/
