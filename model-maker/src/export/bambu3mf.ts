@@ -20,7 +20,14 @@ export type ProjectTemplate = {
 };
 
 export type PartInput = { name: string; color: string; mesh: Mesh };
-export type PlateInput = { name: string; parts: PartInput[] };
+export type PlateInput = {
+  name: string;
+  parts: PartInput[];
+  /** Parts are already in bed coordinates (0..256 mm); keep them there instead of centring. */
+  bedPositioned?: boolean;
+  /** Where this plate's prime tower goes (bed coordinates, its lower-left corner). */
+  wipeTower?: [number, number];
+};
 
 export type Bambu3mfInput = {
   title: string;
@@ -54,8 +61,13 @@ export function writeBambu3mf({ title, plates, template, bedType = "Textured PEI
     const box = boundingBox(parts.map((p) => p.mesh))!;
     const size = [box.max[0] - box.min[0], box.max[1] - box.min[1], box.max[2] - box.min[2]];
     if (size[0] > BED || size[1] > BED) throw new Error(`Plate ${k + 1} is ${size[0].toFixed(1)} × ${size[1].toFixed(1)} mm, larger than the ${BED} mm bed`);
-    // Centre each plate's object on its plate with the lowest point on the bed.
-    const shift: [number, number, number] = [-(box.min[0] + box.max[0]) / 2, -(box.min[1] + box.max[1]) / 2, -box.min[2]];
+    // Centre each plate's object on its plate with the lowest point on the bed,
+    // unless the caller placed the parts on the bed itself.
+    const shift: [number, number, number] = plate.bedPositioned
+      ? [-BED / 2, -BED / 2, -box.min[2]]
+      : [-(box.min[0] + box.max[0]) / 2, -(box.min[1] + box.max[1]) / 2, -box.min[2]];
+    if (plate.bedPositioned && (box.min[0] < 0 || box.min[1] < 0 || box.max[0] > BED || box.max[1] > BED))
+      throw new Error(`Plate ${k + 1} has parts outside the ${BED} mm bed`);
 
     const partIds: number[] = [];
     for (const part of parts) {
@@ -130,7 +142,7 @@ export function writeBambu3mf({ title, plates, template, bedType = "Textured PEI
     "Metadata/model_settings.config": strToU8(modelSettings),
   };
   if (template) {
-    const settings = projectSettings(template, filaments, used.length);
+    const settings = projectSettings(template, filaments, used.length, used.map((p) => p.wipeTower));
     files["Metadata/project_settings.config"] = strToU8(JSON.stringify(settings, null, 4) + "\n");
   } else {
     warnings.push("No print profile template: Bambu Studio will apply its current presets");
@@ -144,7 +156,12 @@ export function writeBambu3mf({ title, plates, template, bedType = "Textured PEI
  * file. Per-filament arrays grow by repeating their last entry; only
  * `filament_colour` changes value, as the research recommends.
  */
-export function projectSettings(template: ProjectTemplate, colors: string[], plateCount: number): Record<string, unknown> {
+export function projectSettings(
+  template: ProjectTemplate,
+  colors: string[],
+  plateCount: number,
+  towers: ([number, number] | undefined)[] = [],
+): Record<string, unknown> {
   const s = structuredClone(template.project_settings) as Record<string, unknown>;
   const have = (s.filament_settings_id as string[] | undefined)?.length ?? 1;
   const n = Math.max(have, colors.length);
@@ -172,10 +189,15 @@ export function projectSettings(template: ProjectTemplate, colors: string[], pla
   }
   const vector = (s.flush_volumes_vector as string[] | undefined) ?? [];
   if (vector.length !== 2 * n) s.flush_volumes_vector = resize(vector.length ? vector : ["140"], 2 * n);
-  for (const key of ["wipe_tower_x", "wipe_tower_y"]) {
+  ["wipe_tower_x", "wipe_tower_y"].forEach((key, axis) => {
     const v = s[key] as string[] | undefined;
-    if (v?.length) s[key] = resize(v, plateCount);
-  }
+    if (!v?.length) return;
+    const out = resize(v, plateCount) as string[];
+    towers.forEach((t, k) => {
+      if (t && k < plateCount) out[k] = String(Math.round(t[axis] * 100) / 100);
+    });
+    s[key] = out;
+  });
   s.version = BAMBU_STUDIO_VERSION;
   return s;
 }

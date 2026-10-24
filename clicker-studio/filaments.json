@@ -1,0 +1,25 @@
+{
+  "_comment": "Your filament colours. Edit names and hex values to match the spools you stock; the swatches, colour pairs and order sheet use this list.",
+  "filaments": [
+    { "hex": "#FFFFFF", "en": "White", "th": "ขาว" },
+    { "hex": "#F3EBDD", "en": "Ivory", "th": "ขาวงาช้าง" },
+    { "hex": "#C9CDD6", "en": "Light Grey", "th": "เทาอ่อน" },
+    { "hex": "#7E8591", "en": "Grey", "th": "เทา" },
+    { "hex": "#1E1E1E", "en": "Black", "th": "ดำ" },
+    { "hex": "#F4B6C8", "en": "Sakura Pink", "th": "ชมพูอ่อน" },
+    { "hex": "#E7609A", "en": "Pink", "th": "ชมพู" },
+    { "hex": "#B82E3A", "en": "Red", "th": "แดง" },
+    { "hex": "#F2862E", "en": "Orange", "th": "ส้ม" },
+    { "hex": "#F7D046", "en": "Yellow", "th": "เหลือง" },
+    { "hex": "#B7E07C", "en": "Lime", "th": "เขียวอ่อน" },
+    { "hex": "#2F8F5B", "en": "Green", "th": "เขียว" },
+    { "hex": "#9ED9D0", "en": "Mint", "th": "มิ้นต์" },
+    { "hex": "#7CC7E8", "en": "Sky Blue", "th": "ฟ้า" },
+    { "hex": "#2F5FB3", "en": "Blue", "th": "น้ำเงิน" },
+    { "hex": "#22305C", "en": "Navy", "th": "กรมท่า" },
+    { "hex": "#C7B3E6", "en": "Lilac", "th": "ม่วงอ่อน" },
+    { "hex": "#6B3FD1", "en": "Purple", "th": "ม่วง" },
+    { "hex": "#8A5A3C", "en": "Brown", "th": "น้ำตาล" },
+    { "hex": "#D9B98C", "en": "Beige", "th": "เบจ" }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "_comment": "PLACEHOLDER PRICES. Replace with your own. price = kind base + extra keys beyond 'includedKeys' x perExtraKey + extras.",
+  "currency": "฿",
+  "kinds": {
+    "cap": { "base": 39, "includedKeys": 1, "perExtraKey": 0 },
+    "picture": { "base": 59, "includedKeys": 1, "perExtraKey": 0 },
+    "row": { "base": 39, "includedKeys": 1, "perExtraKey": 20 },
+    "grid": { "base": 39, "includedKeys": 1, "perExtraKey": 20 },
+    "fluted": { "base": 45, "includedKeys": 1, "perExtraKey": 25 },
+    "model": { "base": 79, "includedKeys": 1, "perExtraKey": 0 }
+  },
+  "parts": {
+    "capsOnlyPerKey": 15,
+    "baseOnly": 25,
+    "azSet": 199
+  },
+  "extras": {
+    "cord": 10,
+    "aiCartoon": 0,
+    "texture": 0,
+    "perColourBeyond4": 10
+  }
+}

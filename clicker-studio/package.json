@@ -1,0 +1,28 @@
+{
+  "name": "clicker-studio",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "setup": "bun scripts/fetch-assets.ts",
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "make": "bun scripts/make.ts",
+    "validate": "bun ../model-maker/scripts/validate-3mf.ts"
+  },
+  "dependencies": {
+    "fflate": "0.8.2",
+    "harfbuzzjs": "1.6.2",
+    "imagetracerjs": "1.2.6",
+    "manifold-3d": "3.5.4",
+    "three": "0.180.0"
+  },
+  "devDependencies": {
+    "@phosphor-icons/core": "2.1.1",
+    "@types/bun": "1.2.21",
+    "@types/three": "0.180.0",
+    "typescript": "5.9.2",
+    "vite": "7.1.5"
+  }
+}

@@ -91,3 +91,21 @@ One value a Parametric Model exposes in the form, such as a name, a size, a colo
 _Avoid_: option, setting, variable
 
 A Parametric Model's `mw_plate_N()` modules each become one Plate in the exported 3MF. Its colours become separate parts on separate filaments, as with Decorations.
+
+### Clicker Studio
+
+**Clicker Studio**:
+The local Clicker designer modelled on Maaprint3Dshop's tool, with kinds, prices, Orders and order sheets. It is separate from the clicker generator.
+_Avoid_: configurator, quote tool
+
+**Picture Clicker**:
+A Cap Clicker whose Top Cap and Base follow the Outline of an uploaded picture, with the picture's colours inlaid on top.
+_Avoid_: image clicker, photo clicker
+
+**Fluted Chain**:
+Single-key Clickers with scalloped Bases, linked side by side with metal jump rings through small loops.
+_Avoid_: cupcake clicker, linked base
+
+**A–Z Set**:
+26 loose Keycaps, one per letter, printed without Bases.
+_Avoid_: alphabet set, letter pack
