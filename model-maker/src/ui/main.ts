@@ -20,6 +20,9 @@ const modelAssets = import.meta.glob("../../models/*/default.*", { query: "?url"
 const tunedTemplate = Object.values(import.meta.glob("../../profiles/project-template.json", { eager: true, import: "default" }))[0];
 const template = (tunedTemplate ?? stockTemplate) as ProjectTemplate;
 
+// The hosted build links back to the launcher; local dev has no launcher.
+if (import.meta.env.VITE_HOME_URL) Object.assign($<HTMLAnchorElement>("home"), { href: import.meta.env.VITE_HOME_URL, hidden: false });
+
 const fonts: FontEntry[] = await (await fetch(`${import.meta.env.BASE_URL}fonts/fonts.json`)).json();
 const preview = new BrowserRunner(fonts);
 const exporter = new BrowserRunner(fonts);

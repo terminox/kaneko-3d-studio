@@ -47,6 +47,8 @@ small { color: var(--muted); }
 /* Header */
 .bar { display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 .bar h1 { font-size: 17px; display: flex; align-items: center; gap: 8px; margin-right: 8px; letter-spacing: -0.01em; }
+.home { color: var(--muted); text-decoration: none; font-size: 13px; }
+.home:hover { color: var(--accent); }
 .logo { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; font-size: 16px; }
 .spacer { flex: 1; }
 .editing { background: var(--warn-bg); color: var(--warn); padding: 4px 10px; border-radius: 999px; font-size: 12.5px; }

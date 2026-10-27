@@ -1,0 +1,22 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "bun install --frozen-lockfile",
+  "buildCommand": "bun run build:site",
+  "outputDirectory": "dist",
+  "cleanUrls": true,
+  "functions": {
+    "api/cartoon.ts": { "maxDuration": 60 }
+  },
+  "redirects": [
+    { "source": "/model-maker", "destination": "/model-maker/", "permanent": true },
+    { "source": "/clicker-studio", "destination": "/clicker-studio/", "permanent": true }
+  ],
+  "rewrites": [{ "source": "/clicker-studio/api/cartoon", "destination": "/api/cartoon" }],
+  "headers": [
+    {
+      "source": "/(model-maker|clicker-studio)/assets/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+    }
+  ]
+}

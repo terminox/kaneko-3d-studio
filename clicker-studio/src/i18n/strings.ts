@@ -5,6 +5,7 @@ const S = {
   "mode.simple": ["แบบง่าย", "Simple"],
   "mode.advanced": ["ปรับเองทุกอย่าง", "Advanced"],
   "common.cancel": ["ยกเลิก", "Cancel"],
+  "home": ["เครื่องมือทั้งหมด", "Tools"],
 
   "design.name": ["ชื่อแบบ", "Design name"],
   "design.new": ["แบบใหม่", "New"],

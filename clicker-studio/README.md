@@ -14,7 +14,7 @@ bun run setup      # 29 Google Fonts (Thai, Korean, Chinese, emoji) and 1,512 Ph
 bun run dev        # http://localhost:5179
 ```
 
-The preview needs WebGL. For the **AI cartoon** button, copy `.env.example` to `.env`, add an `OPENROUTER_API_KEY`, and restart `bun run dev`. The default model is `google/gemini-3.1-flash-image`; change it with `OPENROUTER_IMAGE_MODEL`. The endpoint only exists on the dev server.
+The preview needs WebGL. For the **AI cartoon** button, copy `.env.example` to `.env`, add an `OPENROUTER_API_KEY`, and restart `bun run dev`. The default model is `google/gemini-3.1-flash-image`; change it with `OPENROUTER_IMAGE_MODEL`. The endpoint lives on the dev server here; the hosted site uses `../api/cartoon.ts` (see the [root README](../README.md)).
 
 ## Kinds
 
@@ -66,7 +66,7 @@ src/picture/    process.ts: background removal, holes, Lab k-means colour split,
 src/export/     bambu.ts (→ Model Maker's 3MF writer), template.ts
 src/ui/         main, panels, picture-ui (crop dialog, AI), order-ui (order sheet), viewport, state
 src/i18n/       strings.ts: every Thai and English string
-scripts/        fetch-assets, make, check-kinds, min-sizes, cartoon-api (dev-server endpoint)
+scripts/        fetch-assets, make, check-kinds, min-sizes, cartoon (OpenRouter call), cartoon-api (dev-server endpoint)
 ```
 
 ## Licences

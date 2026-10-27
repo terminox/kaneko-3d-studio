@@ -74,6 +74,7 @@ const designActions = {
 
 function renderHeader() {
   header.replaceChildren(...nodes(
+    import.meta.env.VITE_HOME_URL ? h("a", { class: "home", text: `← ${t("home")}`, attrs: { href: import.meta.env.VITE_HOME_URL } }) : null,
     h("h1", {}, h("span", { class: "logo", text: "⌨" }), "Clicker Studio"),
     segmented(
       [

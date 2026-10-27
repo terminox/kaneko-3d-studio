@@ -1,0 +1,17 @@
+{
+  "name": "kaneko-tools",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:site": "sh scripts/build-site.sh",
+    "test": "bun test auth",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vercel/functions": "3.10.3"
+  },
+  "devDependencies": {
+    "@types/bun": "1.2.21",
+    "typescript": "5.9.2"
+  }
+}
