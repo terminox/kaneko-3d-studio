@@ -109,3 +109,13 @@ _Avoid_: cupcake clicker, linked base
 **A–Z Set**:
 26 loose Keycaps, one per letter, printed without Bases.
 _Avoid_: alphabet set, letter pack
+
+### Tag Studio
+
+**Tag Studio**:
+The local tool that turns an uploaded picture and one or more names into Name Tags. It reuses Clicker Studio's picture and text handling.
+_Avoid_: tag maker, badge maker
+
+**Name Tag**:
+A flat keychain whose plate follows the Outline of a picture and a name, with the picture's colours and the name raised on top and a keyring loop.
+_Avoid_: badge, name keychain (that is the Model Maker's Parametric Model), label

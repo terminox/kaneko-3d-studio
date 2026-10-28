@@ -15,6 +15,7 @@
         --accent: #7c4dff;
         --accent-2: #e8559a;
         --mm: #0a7cff;
+        --ts: #0fa37f;
         color-scheme: light;
       }
       @media (prefers-color-scheme: dark) {
@@ -27,6 +28,7 @@
           --accent: #9b78ff;
           --accent-2: #f070ad;
           --mm: #4c9dff;
+          --ts: #2cc89e;
           color-scheme: dark;
         }
       }
@@ -77,6 +79,7 @@
       .tool .go { margin-top: auto; padding-top: 8px; color: var(--tint); font-weight: 600; }
       .mm { --tint: var(--mm); --tint-bg: var(--mm); }
       .cs { --tint: var(--accent); --tint-bg: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+      .ts { --tint: var(--ts); --tint-bg: var(--ts); }
       footer { padding-bottom: 24px; color: var(--muted); font-size: 12px; }
       footer a { color: inherit; }
     </style>
@@ -101,6 +104,13 @@
           <h2>Clicker Studio</h2>
           <p>ออกแบบคลิกเกอร์ ตัวอักษร รูปภาพ การ์ตูน AI พร้อมราคาและออเดอร์</p>
           <p class="en">Design clickers from letters or pictures, with AI cartoon, prices and orders.</p>
+          <span class="go">เปิด · Open →</span>
+        </a>
+        <a class="tool ts" href="/tag-studio/">
+          <span class="icon" aria-hidden="true">🏷</span>
+          <h2>Tag Studio</h2>
+          <p>อัปรูปแล้วทำเป็นป้ายชื่อพวงกุญแจหลายสี ทำทีละหลายชื่อได้ พร้อมการ์ตูน AI</p>
+          <p class="en">Turn a picture and names into multi-colour name tag keychains, a whole set at once, with AI cartoon.</p>
           <span class="go">เปิด · Open →</span>
         </a>
       </div>

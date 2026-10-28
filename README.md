@@ -1,8 +1,9 @@
 # Kaneko 3D Printing tools
 
-Two in-browser tools for making print-ready Bambu 3MF files:
+Three in-browser tools for making print-ready Bambu 3MF files:
 - [Model Maker](model-maker/README.md): parametric OpenSCAD models.
 - [Clicker Studio](clicker-studio/README.md): the clicker designer.
+- [Tag Studio](tag-studio/README.md): picture name tags, one per name.
 
 Terms are in [CONTEXT.md](CONTEXT.md), and decisions are in [docs/adr](docs/adr).
 
@@ -14,8 +15,8 @@ Terms are in [CONTEXT.md](CONTEXT.md), and decisions are in [docs/adr](docs/adr)
 |---|---|
 | `/` | Launcher (`site/index.html`) |
 | `/login` | Password page (`site/login.html`). `middleware.ts` handles `/auth/login` and `/auth/logout` |
-| `/model-maker/`, `/clicker-studio/` | The tools, built with `--base /<tool>/` |
-| `/clicker-studio/api/cartoon` | AI cartoon, rewritten to the function `api/cartoon.ts` |
+| `/model-maker/`, `/clicker-studio/`, `/tag-studio/` | The tools, built with `--base /<tool>/` |
+| `/clicker-studio/api/cartoon`, `/tag-studio/api/cartoon` | AI cartoon, rewritten to the function `api/cartoon.ts` (one key, one daily cap) |
 
 ### Deploy
 

@@ -5,7 +5,7 @@ set -eu
 cd "$(dirname "$0")/.."
 rm -rf dist
 
-for app in model-maker clicker-studio; do
+for app in model-maker clicker-studio tag-studio; do
   echo "== $app"
   (
     cd "$app"

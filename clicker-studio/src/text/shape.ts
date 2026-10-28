@@ -67,9 +67,10 @@ async function runs(source: FontSource, fontName: string, text: string): Promise
 
 /**
  * Shapes one or more lines of text. Returns rings in mm with the text's
- * cap-height set to `height`, centred on the origin, y up.
+ * cap-height set to `height`, centred on the origin, y up. `spacing` scales
+ * the advance between letters (below 1 squeezes them together).
  */
-export async function textRings(source: FontSource, fontName: string, text: string, height = 10, lineGap = 1.15): Promise<Ring[]> {
+export async function textRings(source: FontSource, fontName: string, text: string, height = 10, lineGap = 1.15, spacing = 1): Promise<Ring[]> {
   const lines = text.split("\n");
   const all: Ring[] = [];
   const lineBoxes: { minX: number; maxX: number }[] = [];
@@ -93,7 +94,7 @@ export async function textRings(source: FontSource, fontName: string, text: stri
           const y0 = -li * height * lineGap * 1.4;
           lineRings.push(...mapRings(pathToRings(d, upem / 400), ([x, y]) => [(x + ox) * s, (y + oy) * s + y0]));
         }
-        pen += pos[i].xAdvance;
+        pen += pos[i].xAdvance * spacing;
       }
     }
     let minX = Infinity, maxX = -Infinity;
