@@ -640,6 +640,10 @@ function pictureCard(): HTMLElement {
       p.width = v;
       changed();
     }),
+    slider("picture.border", d().cap.border, 0, 3, 0.1, "mm", (v) => {
+      d().cap.border = v;
+      changed();
+    }),
     field(
       t("base.shape"),
       segmented(
@@ -964,12 +968,13 @@ export function capCard(): HTMLElement | null {
             c.decoHeight = v;
             changed();
           }),
-      isModel
-        ? null
-        : slider("cap.outlineWidth", c.outlineWidth, 0.6, 3, 0.1, "mm", (v) => {
+      // Pictures and models have no outline rings (a picture's border is in the Picture card).
+      showShape
+        ? slider("cap.outlineWidth", c.outlineWidth, 0.6, 3, 0.1, "mm", (v) => {
             c.outlineWidth = v;
             changed();
-          }),
+          })
+        : null,
     );
   }
   return card;

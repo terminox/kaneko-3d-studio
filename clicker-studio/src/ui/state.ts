@@ -145,6 +145,7 @@ export function switchKind(kind: Kind) {
     d.keys = [{ ...proto, deco: { type: "none" }, capColor: "#FFFFFF" }];
     d.cap.style = "inlay";
     d.cap.topRound = 0.6;
+    d.cap.border = 1;
     d.base.shape = "follow";
     d.picture = {
       image: "",

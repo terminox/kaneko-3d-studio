@@ -94,6 +94,7 @@ export type CapGeometry = {
 /**
  * One cap over one Switch. `deco` layers must already be fitted and centred
  * (cap-local x/y). `rings` are outline rings around them, inner first.
+ * `inset` is how far Decorations stay in from the outline.
  */
 export function buildCap(
   outline: CrossSection,
@@ -104,6 +105,7 @@ export function buildCap(
   rings: Layer[],
   label: string,
   tapered = opts.shape === "keycap",
+  inset = opts.topRound + 0.4,
 ): CapGeometry {
   const { Manifold, CrossSection } = K();
   const { skirtBottom, ceiling, bossBottom } = capHeights(fit);
@@ -127,9 +129,14 @@ export function buildCap(
   // Everything except the boss must clear the housing over the whole travel.
   let cap = body.subtract(cavity).subtract(keepOut(fit)).add(boss.subtract(socket));
 
-  // Flat top area (Decorations stay inside it).
+  // Top area Decorations stay inside.
   const flatScale = topScale;
-  const flat = offset(outline, -(opts.topRound + 0.4)).scale(flatScale);
+  const flat = offset(outline, -inset).scale(flatScale);
+  // Past the flat top they follow the rounded edge: raised ones fill down
+  // over it, flush and inlaid ones are trimmed to it.
+  const edge = inset < opts.topRound + 0.4 && opts.topRound >= 0.05;
+  const raise = (cs: CrossSection, top: number) => (edge ? slab(cs, z1 - opts.topRound, top).subtract(body) : slab(cs, z1, top));
+  const sink = (cs: CrossSection, depth: number) => (edge ? slab(cs, z1 - depth, z1).intersect(body) : slab(cs, z1 - depth, z1));
 
   const solids: Solid[] = [];
   const clip = (cs: CrossSection) => cs.intersect(flat);
@@ -139,7 +146,7 @@ export function buildCap(
     if (parts.length) {
       const cut = slab(CrossSection.union(parts.flatMap((p) => p.levels.map((l) => l.cs))), z1 - depth, z1 + 1);
       cap = cap.subtract(cut);
-      parts.forEach((p, i) => solids.push({ name: `${label} colour ${i + 1}`, color: p.color, m: slab(p.levels[0].cs, z1 - depth, z1) }));
+      parts.forEach((p, i) => solids.push({ name: `${label} colour ${i + 1}`, color: p.color, m: sink(p.levels[0].cs, depth) }));
     }
   } else {
     // Raised: each patch at its own height (0 = inlaid flush), outline rings in lower steps.
@@ -148,13 +155,13 @@ export function buildCap(
     const flush = parts.flatMap((p) => p.levels.filter((l) => l.h <= 0).map((l) => l.cs));
     if (flush.length) cap = cap.subtract(slab(CrossSection.union(flush), z1 - FLUSH_DEPTH, z1 + 1));
     parts.forEach((p, i) => {
-      const ms = p.levels.map((l) => (l.h > 0 ? slab(l.cs, z1, z1 + l.h) : slab(l.cs, z1 - FLUSH_DEPTH, z1)));
+      const ms = p.levels.map((l) => (l.h > 0 ? raise(l.cs, z1 + l.h) : sink(l.cs, FLUSH_DEPTH)));
       solids.push({ name: `${label} decoration ${i + 1}`, color: p.color, m: ms.length > 1 ? Manifold.union(ms) : ms[0] });
     });
     rings.forEach((l, i) => {
       const cs = clip(l.cs);
       const hr = Math.max(0.2, h * (1 - (i + 1) / (rings.length + 1)));
-      if (!cs.isEmpty()) solids.push({ name: `${label} outline ${i + 1}`, color: l.color, m: slab(cs, z1, z1 + hr) });
+      if (!cs.isEmpty()) solids.push({ name: `${label} outline ${i + 1}`, color: l.color, m: raise(cs, z1 + hr) });
     });
   }
   solids.unshift({ name: label, color: capColor, m: cap });

@@ -205,6 +205,7 @@ const S = {
   "picture.colourN": ["สีที่", "Colour"],
   "picture.fromImage": ["สีจากรูป", "Colour in the picture"],
   "picture.width": ["ความกว้างรูป", "Picture width"],
+  "picture.border": ["ความกว้างขอบฝารอบรูป", "Cap border around the picture"],
   "heights.title": ["ความสูงแต่ละชั้น", "Layer heights"],
   "heights.hint": ["แต่ละสีสูงไม่เท่ากันได้ · 0 = ฝังเรียบ · เกิน 4 มม. ส่วนที่บางอาจหัก", "Each colour can stand at its own height · 0 = flush · above 4 mm, thin parts can snap"],
   "heights.pickHint": ["คลิกชิ้นในภาพ 3D เพื่อยกสูงเฉพาะชิ้นนั้น · Shift+คลิก เลือกหลายชิ้น", "Click a patch in the 3D preview to raise it on its own · Shift-click to pick more"],

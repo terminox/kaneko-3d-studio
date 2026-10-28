@@ -71,6 +71,8 @@ export type CapOptions = {
   decoHeight: number;
   /** Outline ring width, mm. */
   outlineWidth: number;
+  /** Picture Designs: cap colour left around the picture, mm. 0 = the picture reaches the edge. */
+  border: number;
 };
 
 export type BaseOptions = {
@@ -170,6 +172,7 @@ export function newDesign(kind: Kind = "cap"): Design {
       style: "raised",
       decoHeight: 0.8,
       outlineWidth: 1.2,
+      border: 1.2,
     },
     base: {
       shape: "follow",

@@ -173,3 +173,69 @@ describe("raised heights on the cap", () => {
     expect(r.print.flatMap((g) => g.parts).length).toBe(2 * 4 + 1);
   });
 });
+
+describe("picture border", () => {
+  const box = (m: Manifold) => m.boundingBox();
+  const outline = () => capOutline("square", 24, 2);
+  const whole = (h?: number) => [{ cs: outline(), color: "#F7D046", h }];
+  const ob = () => outline().bounds();
+
+  test("by default Decorations keep off the rounded top edge", () => {
+    const opts = { ...newDesign("cap").cap, style: "raised" as const };
+    const [, deco] = buildCap(outline(), opts, DEFAULT_FIT, "#FFFFFF", whole(), [], "cap").solids.map((s) => s.m);
+    expect(box(deco).min[0]).toBeCloseTo(ob().min[0] + opts.topRound + 0.4, 2);
+  });
+
+  test("0 mm, raised: the picture runs to the edge and fills down over the rounded top", () => {
+    const opts = { ...newDesign("cap").cap, style: "raised" as const };
+    const g = buildCap(outline(), opts, DEFAULT_FIT, "#FFFFFF", whole(), [], "cap", false, 0);
+    const [cap, deco] = g.solids.map((s) => s.m);
+    expect(box(deco).min[0]).toBeCloseTo(ob().min[0], 2);
+    expect(box(deco).max[1]).toBeCloseTo(ob().max[1], 2);
+    expect(box(deco).min[2]).toBeCloseTo(g.top - opts.topRound, 3);
+    expect(box(deco).max[2]).toBeCloseTo(g.top + opts.decoHeight, 3);
+    expect(cap.intersect(deco).volume()).toBeLessThan(1e-3);
+  });
+
+  test("0 mm, flush and inlay: the picture runs to the edge, trimmed to the rounded top", () => {
+    for (const [style, h, depth] of [["raised", 0, FLUSH_DEPTH], ["inlay", undefined, 0.8]] as const) {
+      const opts = { ...newDesign("cap").cap, style, decoHeight: 0.8 };
+      const g = buildCap(outline(), opts, DEFAULT_FIT, "#FFFFFF", whole(h), [], "cap", false, 0);
+      const [cap, piece] = g.solids.map((s) => s.m);
+      // Within the rounding of the edge (a 0.6 mm flush patch stops just above its widest step).
+      expect(box(piece).min[0]).toBeLessThan(ob().min[0] + 0.1);
+      expect(box(piece).max[2]).toBeCloseTo(g.top, 3);
+      expect(box(piece).min[2]).toBeCloseTo(g.top - depth, 3);
+      // Smaller than a straight slab: the rounding trims its top edge.
+      expect(piece.volume()).toBeLessThan(outline().area() * depth - 0.1);
+      expect(cap.intersect(piece).volume()).toBeLessThan(1e-3);
+    }
+  });
+
+  test("a picture Design's border sets how far the colours stay in from the cap edge", async () => {
+    const design: Design = newDesign("picture");
+    design.cap.style = "raised";
+    design.picture = {
+      image: "p",
+      crop: { x: 0, y: 0, w: 1, h: 1, rotate: 0 },
+      adjust: { brightness: 0, contrast: 0, saturation: 0 },
+      removeBackground: true,
+      bgStrength: 70,
+      punchHoles: false,
+      colors: 3,
+      palette: ["#F7D046", "#1E1E1E", "#FFFFFF"],
+      width: 40,
+      useCartoon: false,
+    };
+    const traced = { p: { ...picture(), anchor: [50, 50] as [number, number] } };
+    const width = async (border: number, name: string) => {
+      design.cap.border = border;
+      const v = (await build(design, { ...assets, traced })).assembled.find((p) => p.name === name)!.mesh.vertices;
+      let min = Infinity, max = -Infinity;
+      for (let i = 0; i < v.length; i += 3) (min = Math.min(min, v[i])), (max = Math.max(max, v[i]));
+      return max - min;
+    };
+    expect(await width(0, "Top Cap decoration 1")).toBeCloseTo(await width(0, "Top Cap"), 1);
+    expect(await width(1.2, "Top Cap decoration 1")).toBeCloseTo(40 - 2.4, 1);
+  });
+});

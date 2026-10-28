@@ -45,7 +45,8 @@ export function toMesh(m: Manifold): Mesh {
   return { vertices, triangles: new Uint32Array(g.triVerts) };
 }
 
-type CapSpec = { key: Key; outline: CrossSection; at: [number, number]; deco: Layer[]; label: string; extra?: Manifold };
+/** `inset`: how far the Decoration stays in from the outline (default: the flat top). */
+type CapSpec = { key: Key; outline: CrossSection; at: [number, number]; deco: Layer[]; label: string; extra?: Manifold; inset?: number };
 
 /** Fits a key's Decoration into its cap's flat top. */
 async function keyDeco(key: Key, outline: CrossSection, design: Design, assets: Assets): Promise<Layer[]> {
@@ -98,7 +99,7 @@ export async function build(design: Design, assets: Assets): Promise<BuildResult
     if (!ps) warnings.push("warn.noPicture");
     const outline = ps?.outline ?? capOutline("circle", 30, 0);
     const deco = ps?.deco ?? [];
-    caps.push({ key: design.keys[0], outline, at: [0, 0], deco, label: "Top Cap" });
+    caps.push({ key: design.keys[0], outline, at: [0, 0], deco, label: "Top Cap", inset: cap.border });
     baseKeys = [{ at: [0, 0], outline }];
   } else if (design.kind === "model") {
     const ms = modelSpec(design, warnings);
@@ -142,7 +143,7 @@ export async function build(design: Design, assets: Assets): Promise<BuildResult
   const patches: PatchInfo[] = [];
   if (wantCaps) {
     for (const [i, c] of caps.entries()) {
-      const g = buildCap(c.outline, design.kind === "model" ? { ...cap, style: "raised" } : cap, fit, c.key.capColor, c.deco, keyRings(c.key, c.deco, design), c.label);
+      const g = buildCap(c.outline, design.kind === "model" ? { ...cap, style: "raised" } : cap, fit, c.key.capColor, c.deco, keyRings(c.key, c.deco, design), c.label, undefined, c.inset);
       // A 3D model stands on the cap top, fused into the cap.
       if (c.extra) g.solids[0].m = g.solids[0].m.add(c.extra.translate([0, 0, g.top - 0.2]));
       for (const s of g.solids) assembled.push(part(s, c.at));

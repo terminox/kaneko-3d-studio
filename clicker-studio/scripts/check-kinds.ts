@@ -61,6 +61,7 @@ const fixtures: Record<string, () => { design: Design; traced: Record<string, Tr
     const t = tracePicture(face(), { removeBackground: true, bgStrength: 70, punchHoles: false, colors: 2 });
     const d = newDesign("picture");
     d.cap.style = "inlay";
+    d.cap.border = 0;
     d.picture = {
       image: "face",
       crop: { x: 0, y: 0, w: 1, h: 1, rotate: 0 },
@@ -76,10 +77,11 @@ const fixtures: Record<string, () => { design: Design; traced: Record<string, Tr
     return { design: d, traced: { face: t } };
   },
   layered: () => {
-    // Raised picture with layer heights: a flush face, 3 mm eyes, and the mouth on its own at 6 mm.
+    // Raised picture with layer heights: a flush face, 3 mm eyes, and the mouth on its own at 6 mm, to the edge.
     const t = tracePicture(face(), { removeBackground: true, bgStrength: 70, punchHoles: false, colors: 2 });
     const d = newDesign("picture");
     d.cap.style = "raised";
+    d.cap.border = 0;
     d.picture = {
       image: "face",
       crop: { x: 0, y: 0, w: 1, h: 1, rotate: 0 },

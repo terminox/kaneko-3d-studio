@@ -23,7 +23,7 @@ The preview needs WebGL. For the **AI cartoon** button, copy `.env.example` to `
 | Single key | One Top Cap on a Base: text (several lines), emoji, icon, symbol or picture on top. |
 | Letter row | One Keycap per character (Thai, English, 한국어, 中文, emoji), up to 10, on one Base. |
 | Grid / WASD | Keys in a row, column, grid, WASD, arrows, T or custom cells, up to 24. |
-| Picture | Upload a picture. The cap and Base follow its outline, the picture splits into 1–7 colours, and the Switch goes at the widest point of the shape. |
+| Picture | Upload a picture. The cap and Base follow its outline, the picture splits into 1–7 colours with a cap border of 0–3 mm around it (0 = the picture runs to the edge), and the Switch goes at the widest point of the shape. |
 | Fluted chain | One scalloped Base per key, with a small loop on each side. Link them with 6–8 mm metal jump rings. |
 | 3D model | An STL/OBJ is rotated, scaled, cut flat and fused onto a standard cap pedestal. The model must be watertight. |
 
