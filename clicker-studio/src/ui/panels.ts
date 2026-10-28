@@ -1,6 +1,6 @@
 // The side panels. Each control edits state.design, then calls changed()
 // (geometry only) or rerender() (panels change shape too).
-import type { CapShape, Decoration, Design, Key, Kind, Layout, Loop, PartsMode, Texture } from "../design/types.ts";
+import type { CapShape, Decoration, Design, Key, Kind, LayerHeights, Layout, Loop, PartsMode, Texture } from "../design/types.ts";
 import { DEFAULT_FIT, type Fit } from "../geometry/switch.ts";
 import { layoutKeyCount } from "../geometry/layout.ts";
 import { SYMBOLS } from "../geometry/symbols.ts";
@@ -9,8 +9,9 @@ import { CURRENCY, price, priceLines, designColours } from "../design/price.ts";
 import { orderTotal } from "../design/order.ts";
 import { t, type StringKey } from "../i18n/strings.ts";
 import { button, field, h, pickFile, readDataUrl, section, segmented, slider, swatches, toggle } from "./dom.ts";
-import { changed, rerender, state, switchKind } from "./state.ts";
-import { cartoonize, cropDialog, retracePicture, retraceKeyImages } from "./picture-ui.ts";
+import { changed, rerender, selectedPatches, selectionChanged, state, switchKind } from "./state.ts";
+import { cartoonize, cropDialog, loadImage, retracePicture, retraceKeyImages } from "./picture-ui.ts";
+import { MAX_HEIGHT, TALL, colourHeight, emptyHeights, flatten, makeItPop, remapPins, resetPatches, setColourHeight, setPatchHeights } from "../design/heights.ts";
 import { orderActions } from "./order-ui.ts";
 
 const adv = () => state.mode === "advanced";
@@ -319,6 +320,7 @@ function keyEditor(i: number): HTMLElement {
         const id = `img-${Date.now()}`;
         d().files[id] = await readDataUrl(f);
         deco.image = id;
+        delete deco.heights;
         await retraceKeyImages();
         rerender();
       }, "primary block"),
@@ -351,6 +353,11 @@ function keyEditor(i: number): HTMLElement {
         refreshChips();
       })),
     );
+  }
+  if (deco.type === "image") {
+    const traced = state.traced[deco.image];
+    if (traced?.layers.length)
+      wrap.append(heightsBlock(i, () => (deco.heights ??= emptyHeights()), deco.heights, traced.layers.map((l) => l.color)));
   }
   if (d().kind === "fluted") {
     wrap.append(
@@ -499,6 +506,7 @@ function pictureCard(): HTMLElement {
       p.image = id;
       p.useCartoon = false;
       p.palette = [];
+      delete p.heights;
       const r = await cropDialog(d().files[id], { x: 0, y: 0, w: 1, h: 1, rotate: 0 }, p.adjust);
       if (r) Object.assign(p, r);
       await retraceAndRender();
@@ -511,6 +519,11 @@ function pictureCard(): HTMLElement {
     button(`✂️ ${t("picture.crop")}`, async () => {
       const r = await cropDialog(d().files[p.image], p.crop, p.adjust);
       if (!r) return;
+      // Pins move with the picture under the new crop.
+      if (p.heights?.pins.length) {
+        const img = await loadImage(d().files[p.image]);
+        p.heights.pins = remapPins(p.heights.pins, p.crop, r.crop, img.naturalWidth, img.naturalHeight);
+      }
       Object.assign(p, r);
       p.useCartoon = false;
       await retraceAndRender();
@@ -619,6 +632,9 @@ function pictureCard(): HTMLElement {
       );
     });
   }
+  add(card, styleField());
+  if (traced?.layers.length) add(card, heightsBlock(-1, () => (p.heights ??= emptyHeights()), p.heights, traced.layers.map((l, i) => p.palette[i] ?? l.color)));
+  else if (d().cap.style === "raised") add(card, h("p", { class: "muted", text: t("heights.needColours") }));
   add(card, 
     slider("picture.width", p.width, 24, 80, 1, "mm", (v) => {
       p.width = v;
@@ -642,6 +658,113 @@ function pictureCard(): HTMLElement {
     h("p", { class: "muted", text: t("picture.switchNote") }),
   );
   return card;
+}
+
+/* ---------- Layer heights ---------- */
+
+function styleField(): HTMLElement {
+  return field(
+    t("cap.style"),
+    segmented(
+      [
+        { value: "raised", label: t("cap.raised") },
+        { value: "inlay", label: t("cap.inlay") },
+      ],
+      d().cap.style,
+      (v) => {
+        d().cap.style = v as "raised" | "inlay";
+        rerender();
+      },
+    ),
+    t("cap.styleHint"),
+  );
+}
+
+/** A dot in a colour, then a label. */
+function dotLabel(text: string, color?: string): HTMLElement {
+  return h("span", { class: "dot-label" }, color ? h("span", { class: "dot", style: `--c:${color}` }) : null, text);
+}
+
+/**
+ * Heights for one picture's patches: one slider per traced colour, the picked
+ * patches' own height, and Make it pop / Flatten. `owner` is -1 for the
+ * picture, else the key index; `get` creates the heights on first edit.
+ */
+function heightsBlock(owner: number, get: () => LayerHeights, hs: LayerHeights | undefined, colours: string[]): HTMLElement {
+  const wrap = h("div", { class: "heights" }, h("div", { class: "field-label" }, h("span", { text: t("heights.title") }), h("small", { text: t("heights.hint") })));
+  if (d().cap.style !== "raised") {
+    wrap.append(
+      h("p", { class: "muted", text: t("heights.needRaised") }),
+      button(`⬆ ${t("heights.useRaised")}`, () => {
+        d().cap.style = "raised";
+        rerender();
+      }, "primary block"),
+    );
+    return wrap;
+  }
+  const def = Math.max(0.4, d().cap.decoHeight);
+  // Buttons read the latest build when clicked; the panel may be older.
+  const live = () => (state.build?.patches ?? []).filter((p) => p.owner === owner);
+  const mine = () => selectedPatches().filter((p) => p.owner === owner);
+  const patches = live();
+  colours.forEach((c, i) => {
+    wrap.append(
+      slider(dotLabel(`${t("picture.colourN")} ${i + 1}`, c), colourHeight(hs, i, def), 0, MAX_HEIGHT, 0.2, "mm", (v) => {
+        setColourHeight(get(), i, v);
+        changed();
+      }, TALL),
+    );
+    const own = patches.filter((p) => p.layer === i && p.own);
+    if (own.length)
+      wrap.append(
+        h("div", { class: "own" }, h("span", { text: `${own.length} ${t("heights.own")}` }), button(`↺ ${t("heights.reset")}`, () => {
+          resetPatches(get(), live().filter((p) => p.layer === i && p.own));
+          rerender();
+        }, "ghost small")),
+      );
+  });
+  const sel = mine();
+  if (sel.length) {
+    wrap.append(
+      h(
+        "div",
+        { class: "sel-box" },
+        slider(dotLabel(`${t("heights.selected")}: ${sel.length}`, colours[sel[0].layer]), sel[0].h, 0, MAX_HEIGHT, 0.2, "mm", (v) => {
+          setPatchHeights(get(), mine(), v);
+          changed();
+        }, TALL),
+        h(
+          "div",
+          { class: "btn-row" },
+          button(`↺ ${t("heights.resetSel")}`, () => {
+            resetPatches(get(), mine());
+            rerender();
+          }, "ghost small"),
+          button(`✕ ${t("heights.deselect")}`, () => {
+            state.selected = [];
+            selectionChanged();
+          }, "ghost small"),
+        ),
+      ),
+    );
+  } else wrap.append(h("p", { class: "muted", text: t("heights.pickHint") }));
+  const pop = button(`✨ ${t("heights.pop")}`, () => {
+    makeItPop(get(), live(), def);
+    rerender();
+  });
+  pop.disabled = !patches.length;
+  wrap.append(
+    h(
+      "div",
+      { class: "btn-row" },
+      pop,
+      button(`▭ ${t("heights.flatten")}`, () => {
+        flatten(get());
+        rerender();
+      }),
+    ),
+  );
+  return wrap;
 }
 
 async function retraceAndRender(full = true) {
@@ -797,7 +920,8 @@ export function capCard(): HTMLElement | null {
     );
   }
   const isModel = d().kind === "model";
-  if (!isModel) add(card, 
+  // Pictures pick their style in the Picture card.
+  if (!isModel && d().kind !== "picture") add(card, 
     field(
       t("cap.style"),
       segmented(

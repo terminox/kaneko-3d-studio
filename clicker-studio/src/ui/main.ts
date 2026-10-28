@@ -3,12 +3,13 @@ import "./style.css";
 import { newDesign, type Design } from "../design/types.ts";
 import { t, tr, setLang } from "../i18n/strings.ts";
 import { button, download, h, pickFile, segmented } from "./dom.ts";
-import { changed, rerender, state, subscribe, upgrade } from "./state.ts";
+import { changed, rerender, selectedPatches, selectionChanged, state, subscribe, upgrade } from "./state.ts";
 import { Viewport } from "./viewport.ts";
 import { onBuilt, requestBuild, requestExport } from "./engine.ts";
 import { baseCard, capCard, colourCard, contentCard, fitCard, kindCard, loadCatalogs, nameField, orderCard, type FontInfo } from "./panels.ts";
 import { cartoonAvailable, retraceAll } from "./picture-ui.ts";
 import { setSnapshot } from "./order-ui.ts";
+import { patchAt, samePt } from "../design/heights.ts";
 
 const app = document.getElementById("app")!;
 const left = h("aside", { class: "panel left" });
@@ -36,6 +37,7 @@ const designActions = {
     state.design = newDesign(state.design.kind);
     state.editing = null;
     state.traced = {};
+    state.selected = [];
     rerender();
   },
   save() {
@@ -50,6 +52,7 @@ const designActions = {
       state.design = upgrade(d);
       state.editing = null;
       state.traced = {};
+      state.selected = [];
       await retraceAll();
       rerender();
     } catch (e) {
@@ -125,6 +128,7 @@ function renderStageTools() {
       (v) => {
         state.view = v as typeof state.view;
         showModel();
+        paintHighlight();
         renderStageTools();
       },
     ),
@@ -180,6 +184,33 @@ function showModel(frame = false) {
   dims.textContent = s ? `${s.x.toFixed(0)} × ${s.y.toFixed(0)} × ${s.z.toFixed(1)} mm${plates}` : "";
 }
 
+/** Identifies a build's patches and which have their own height (not the heights themselves). */
+const patchKey = (b: typeof state.build) => (b?.patches ?? []).map((p) => `${p.owner}:${p.at}${p.own ? "*" : ""}`).join("|");
+/** True while a panel input has focus: re-rendering then would cut a drag short. */
+const editing = () => document.activeElement instanceof HTMLInputElement && left.contains(document.activeElement);
+
+function paintHighlight() {
+  viewport.highlight(state.view === "assembled" ? selectedPatches() : []);
+}
+
+// Click a patch to pick it; Shift-click adds or removes; a click elsewhere clears.
+viewport.onPick = (hit, shift) => {
+  const patches = state.build?.patches ?? [];
+  if (state.view !== "assembled" || !patches.length) return;
+  const p = hit ? patchAt(patches, hit) : null;
+  if (!p) {
+    if (shift || !state.selected.length) return;
+    state.selected = [];
+  } else {
+    const on = state.selected.some((s) => s.owner === p.owner && samePt(s.at, p.at));
+    const mine = state.selected.filter((s) => s.owner === p.owner);
+    if (!shift) state.selected = [{ owner: p.owner, at: p.at }];
+    else state.selected = on ? mine.filter((s) => !samePt(s.at, p.at)) : [...mine, { owner: p.owner, at: p.at }];
+    if (p.owner >= 0) state.selectedKey = p.owner;
+  }
+  selectionChanged();
+};
+
 let timer: ReturnType<typeof setTimeout> | undefined;
 function scheduleBuild() {
   clearTimeout(timer);
@@ -193,16 +224,31 @@ onBuilt((r) => {
     state.error = r.message;
     state.status = "";
   } else {
+    const before = patchKey(state.build);
     state.build = r;
     state.error = "";
     state.status = "";
     showModel();
+    // Keep picks whose patch still exists (a retrace rebuilds them all).
+    const kept = state.selected.filter((s) => r.patches.some((p) => p.owner === s.owner && samePt(s.at, p.at)));
+    // The height tools list the patches: refresh them when the patches change,
+    // unless a slider is mid-drag.
+    if (kept.length !== state.selected.length || (patchKey(r) !== before && !editing())) {
+      state.selected = kept;
+      renderPanels();
+    }
+    paintHighlight();
   }
   paintStatus();
 });
 
 subscribe((what) => {
   if (what === "status") return paintStatus();
+  if (what === "selection") {
+    renderPanels();
+    paintHighlight();
+    return;
+  }
   if (what === "panels") {
     renderHeader();
     renderPanels();
@@ -232,4 +278,4 @@ async function start() {
 
 void start();
 void changed;
-if (import.meta.env.DEV) (window as unknown as { __vp: Viewport }).__vp = viewport;
+if (import.meta.env.DEV) Object.assign(window, { __vp: viewport, __state: state });

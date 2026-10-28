@@ -3,7 +3,8 @@ import "./style.css";
 import { newTagDesign, tagNames, upgradeTag, type TagDesign } from "../design/types.ts";
 import { t, tr, setLang } from "../i18n/strings.ts";
 import { button, download, h, pickFile, segmented } from "./dom.ts";
-import { rerender, state, subscribe } from "./state.ts";
+import { rerender, selectedPatches, selectionChanged, state, subscribe } from "./state.ts";
+import { patchAt, samePt } from "@cs/design/heights.ts";
 import { Viewport } from "./viewport.ts";
 import { onBuilt, requestBuild, requestExport } from "./engine.ts";
 import { colourCard, designNameCard, loadFonts, loopCard, nameCard, pictureCard, plateCard, ringsCard, type FontInfo } from "./panels.ts";
@@ -33,6 +34,7 @@ const designActions = {
     state.design = newTagDesign();
     state.preview = 0;
     state.traced = {};
+    state.selected = [];
     rerender();
   },
   save() {
@@ -144,6 +146,31 @@ function showModel(frame = false) {
   else dims.textContent = s ? `${s.x.toFixed(0)} × ${s.y.toFixed(0)} × ${s.z.toFixed(1)} mm` : "";
 }
 
+/** Identifies a build's patches and which have their own height (not the heights themselves). */
+const patchKey = (b: typeof state.build) => (b?.patches ?? []).map((p) => `${p.at}${p.own ? "*" : ""}`).join("|");
+/** True while a panel input has focus: re-rendering then would cut a drag short. */
+const editing = () => document.activeElement instanceof HTMLInputElement && left.contains(document.activeElement);
+
+function paintHighlight() {
+  viewport.highlight(state.build && !state.build.plateView ? selectedPatches() : []);
+}
+
+// Click a picture patch to pick it; Shift-click adds or removes; a click elsewhere clears.
+viewport.onPick = (hit, shift) => {
+  const patches = state.build?.plateView ? [] : (state.build?.patches ?? []);
+  if (!patches.length) return;
+  const p = hit ? patchAt(patches, hit) : null;
+  if (!p) {
+    if (shift || !state.selected.length) return;
+    state.selected = [];
+  } else {
+    const on = state.selected.some((s) => samePt(s.at, p.at));
+    if (!shift) state.selected = [{ owner: p.owner, at: p.at }];
+    else state.selected = on ? state.selected.filter((s) => !samePt(s.at, p.at)) : [...state.selected, { owner: p.owner, at: p.at }];
+  }
+  selectionChanged();
+};
+
 let timer: ReturnType<typeof setTimeout> | undefined;
 function scheduleBuild() {
   clearTimeout(timer);
@@ -160,16 +187,31 @@ onBuilt((r) => {
     state.status = "";
   } else {
     const first = !state.build;
+    const before = patchKey(state.build);
     state.build = r;
     state.error = "";
     state.status = "";
     showModel(first);
+    // Keep picks whose patch still exists (a retrace rebuilds them all). The
+    // height tools list the patches: refresh them when the patches change,
+    // unless a slider is mid-drag.
+    const kept = r.plateView ? state.selected : state.selected.filter((s) => r.patches.some((p) => samePt(s.at, p.at)));
+    if (kept.length !== state.selected.length || (patchKey(r) !== before && !editing())) {
+      state.selected = kept;
+      renderPanels();
+    }
+    paintHighlight();
   }
   paintStatus();
 });
 
 subscribe((what) => {
   if (what === "status") return paintStatus();
+  if (what === "selection") {
+    renderPanels();
+    paintHighlight();
+    return;
+  }
   if (what === "panels") {
     renderHeader();
     renderPanels();
@@ -197,4 +239,4 @@ async function start() {
 }
 
 void start();
-if (import.meta.env.DEV) (window as unknown as { __vp: Viewport }).__vp = viewport;
+if (import.meta.env.DEV) Object.assign(window, { __vp: viewport, __state: state });

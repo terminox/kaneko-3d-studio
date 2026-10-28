@@ -6,6 +6,7 @@ import { K, type CrossSection } from "./kernel.ts";
 import { offset, rings } from "./outline.ts";
 import { mapRings, pathToRings, type Ring } from "./path.ts";
 import { SYMBOLS, symbol, type SymbolName } from "./symbols.ts";
+import { patchRef, tracedPatches, type PatchRef } from "./patches.ts";
 
 /** An icon as SVG path data in its own viewBox (y down). */
 export type IconData = { paths: string[]; viewBox: [number, number, number, number] };
@@ -26,7 +27,8 @@ export type Assets = {
   traced: Record<string, Traced>;
 };
 
-export type Layer = { cs: CrossSection; color: string };
+/** A coloured area on a cap top. Picture patches carry their own height (mm; 0 = flush) and where they came from. */
+export type Layer = { cs: CrossSection; color: string; h?: number; patch?: PatchRef };
 
 /** Scales and centres layers so their union fits a `w` × `h` box. */
 export function fitLayers(layers: Layer[], w: number, h: number): Layer[] {
@@ -37,7 +39,7 @@ export function fitLayers(layers: Layer[], w: number, h: number): Layer[] {
   if (bw <= 0 || bh <= 0) return [];
   const s = Math.min(w / bw, h / bh);
   const cx = (b.min[0] + b.max[0]) / 2, cy = (b.min[1] + b.max[1]) / 2;
-  return layers.map((l) => ({ color: l.color, cs: l.cs.translate([-cx, -cy]).scale(s) }));
+  return layers.map((l) => ({ ...l, cs: l.cs.translate([-cx, -cy]).scale(s) }));
 }
 
 /** Image units (y down) -> mm-agnostic units (y up). */
@@ -70,7 +72,7 @@ export async function decorationLayers(key: Key, assets: Assets): Promise<Layer[
     case "image": {
       const t = assets.traced[d.image];
       if (!t) return [];
-      return t.layers.map((l) => ({ cs: rings(flipY(l.rings), "EvenOdd"), color: l.color }));
+      return tracedPatches(t, d.heights).map((p) => ({ cs: p.cs, color: t.layers[p.layer].color, h: p.h, patch: patchRef(p) }));
     }
   }
 }

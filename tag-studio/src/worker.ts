@@ -7,6 +7,7 @@ import { platesTo3mf } from "@cs/export/bambu.ts";
 import { printTemplate } from "@cs/export/template.ts";
 import { buildAll, buildTag, type TagAssets } from "./geometry/tag.ts";
 import type { TagDesign } from "./design/types.ts";
+import type { PatchInfo } from "@cs/design/heights.ts";
 
 export type BuildRequest = {
   type: "build";
@@ -29,6 +30,8 @@ export type BuildReply = {
   plateView: boolean;
   plates: number;
   warnings: string[];
+  /** The previewed tag's picture patches (none in the plate view). */
+  patches: PatchInfo[];
   ms: number;
 };
 export type ExportReply = { type: "export"; id: number; data: Uint8Array; filaments: string[]; warnings: string[]; plates: number; tags: number };
@@ -74,10 +77,10 @@ async function runBuilds() {
       if (req.plateView) {
         const r = await buildAll(req.design, assets(req.traced));
         const parts = r.plates[0]?.groups.flatMap((g) => g.parts) ?? [];
-        reply = { type: "build", id: req.id, parts, loop: null, plateView: true, plates: r.plates.length, warnings: r.warnings, ms: 0 };
+        reply = { type: "build", id: req.id, parts, loop: null, plateView: true, plates: r.plates.length, warnings: r.warnings, patches: [], ms: 0 };
       } else {
         const r = await buildTag(req.design, req.name, assets(req.traced));
-        reply = { type: "build", id: req.id, parts: r.group.parts, loop: r.loop, plateView: false, plates: 0, warnings: r.warnings, ms: 0 };
+        reply = { type: "build", id: req.id, parts: r.group.parts, loop: r.loop, plateView: false, plates: 0, warnings: r.warnings, patches: r.patches, ms: 0 };
       }
       reply.ms = performance.now() - t;
       post(reply, buffers(reply.parts));

@@ -75,13 +75,19 @@ export async function tracePictureOf(design: TagDesign): Promise<Record<string, 
   if (!src) return {};
   const canvas = await renderPicture(src, useCartoon ? FULL : p.crop, useCartoon ? NO_ADJUST : p.adjust, 360);
   const traced = tracePicture(pixels(canvas), p);
-  // Keep the owner's colour choices when the colour count is unchanged.
-  if (p.palette.length !== traced.colours.length || !p.palette.length) p.palette = traced.colours.map(nearestFilament);
+  // Keep the owner's colour choices when the colour count is unchanged. A new
+  // split re-sorts the colours, so their heights start over; patch pins stay put.
+  if (p.palette.length !== traced.colours.length || !p.palette.length) {
+    p.palette = traced.colours.map(nearestFilament);
+    if (p.heights) p.heights.colour = [];
+  }
   return { [p.image]: traced };
 }
 
+/** Retraces the picture. Every patch is rebuilt, so picks are dropped. */
 export async function retracePicture(): Promise<void> {
   state.traced = await tracePictureOf(state.design);
+  state.selected = [];
 }
 
 /** Sends the cropped picture to the AI cartoon endpoint; stores the result. */

@@ -3,6 +3,8 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import type { Part } from "../geometry/build.ts";
+import type { Ring } from "../geometry/path.ts";
+import { pointInRings, signedArea } from "../design/heights.ts";
 
 export type Scene = {
   parts: Part[];
@@ -21,12 +23,20 @@ export class Viewport {
   private controls: OrbitControls;
   private model = new THREE.Group();
   private extras = new THREE.Group();
+  /** Highlights over picked patches. */
+  private marks = new THREE.Group();
+  // Drawn just above each top, depth-tested so taller patches in front hide them.
+  private markFill = new THREE.MeshBasicMaterial({ color: 0x7c4dff, transparent: true, opacity: 0.6, depthWrite: false, side: THREE.DoubleSide });
+  private markLine = new THREE.LineBasicMaterial({ color: 0xffffff, depthWrite: false });
+  private raycaster = new THREE.Raycaster();
   private grid: THREE.Group;
   private clip = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   private framedSize = 0;
   private lastPrint: boolean | null = null;
   section = false;
   showSwitch = false;
+  /** Called on a click (not a drag) with the point hit on the model (model frame), or null. */
+  onPick: ((hit: [number, number, number] | null, shift: boolean) => void) | null = null;
 
   constructor(private host: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, alpha: true });
@@ -48,11 +58,23 @@ export class Viewport {
     rim.position.set(-120, 120, 80);
     this.scene.add(rim);
     this.grid = this.makeGrid();
-    this.scene.add(this.grid, this.model, this.extras);
+    this.scene.add(this.grid, this.model, this.extras, this.marks);
+
+    // A click picks; a drag orbits.
+    const el = this.renderer.domElement;
+    let down: { x: number; y: number } | null = null;
+    el.addEventListener("pointerdown", (e) => (down = e.button === 0 ? { x: e.clientX, y: e.clientY } : null));
+    el.addEventListener("pointerup", (e) => {
+      if (!down || !this.onPick || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4) return;
+      down = null;
+      this.onPick(this.hit(e), e.shiftKey);
+    });
 
     new ResizeObserver(() => this.resize()).observe(host);
     this.resize();
-    this.renderer.setAnimationLoop(() => {
+    this.renderer.setAnimationLoop((ms) => {
+      // Picked patches pulse gently, so they show on any colour.
+      if (this.marks.children.length) this.markFill.opacity = 0.45 + 0.25 * Math.sin(ms / 220);
       this.controls.update();
       this.renderer.render(this.scene, this.camera);
     });
@@ -129,6 +151,43 @@ export class Viewport {
     const modeChanged = this.lastPrint !== s.printLayout;
     this.lastPrint = s.printLayout;
     if (frame || modeChanged || !this.framedSize || extent > this.framedSize * 1.35 || extent < this.framedSize * 0.5) this.frame(placed);
+  }
+
+  /** The first point of the model under the pointer, in model frame. */
+  private hit(e: PointerEvent): [number, number, number] | null {
+    const r = this.renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    this.raycaster.setFromCamera(ndc, this.camera);
+    const [first] = this.raycaster.intersectObjects(this.model.children, false);
+    if (!first) return null;
+    const p = first.point.sub(this.model.position);
+    return [p.x, p.y, p.z];
+  }
+
+  /** Tints picked patches: a see-through fill and an outline on each one's top. */
+  highlight(patches: { rings: Ring[]; top: number }[]) {
+    // The materials are shared, so only the geometry is disposed.
+    this.marks.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
+    this.marks.clear();
+    this.marks.position.copy(this.model.position);
+    for (const p of patches) {
+      const v = (r: Ring) => r.map(([x, y]) => new THREE.Vector2(x, y));
+      const outers = p.rings.filter((r) => signedArea(r) > 0);
+      const shapes = outers.map((r) => new THREE.Shape(v(r)));
+      for (const hole of p.rings.filter((r) => signedArea(r) <= 0)) {
+        const i = outers.findIndex((o) => pointInRings([o], hole[0]));
+        if (i >= 0) shapes[i].holes.push(new THREE.Path(v(hole)));
+      }
+      const fill = new THREE.Mesh(new THREE.ShapeGeometry(shapes), this.markFill);
+      fill.position.z = p.top + 0.08;
+      fill.renderOrder = 10;
+      this.marks.add(fill);
+      for (const r of p.rings) {
+        const line = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(r.map(([x, y]) => new THREE.Vector3(x, y, p.top + 0.1))), this.markLine);
+        line.renderOrder = 11;
+        this.marks.add(line);
+      }
+    }
   }
 
   /** A simplified MX switch: housings and stem, see-through. */

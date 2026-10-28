@@ -5,6 +5,7 @@ import { K, type CrossSection, type Manifold } from "./kernel.ts";
 import { offset } from "./outline.ts";
 import { capHeights, minCapHeight, type Fit } from "./switch.ts";
 import type { Layer } from "./decoration.ts";
+import { FLUSH_DEPTH } from "../design/heights.ts";
 
 export type Solid = { name: string; color: string; m: Manifold };
 
@@ -59,6 +60,29 @@ export function skirtExposed(outline: CrossSection, fit: Fit, rimTop: number): b
   return s.subtract(offset(outline, -0.6)).area() > 0.01;
 }
 
+/**
+ * Layers -> printed parts: the patches of one traced colour make one part
+ * (other layers are one part each). Areas at the same height are merged and
+ * clipped together, so a flat picture costs one extrusion per colour.
+ */
+function partsOf(layers: Layer[], heightOf: (l: Layer) => number, clip: (cs: CrossSection) => CrossSection) {
+  const { CrossSection } = K();
+  const groups = new Map<string, { color: string; byH: Map<number, CrossSection[]> }>();
+  layers.forEach((l, i) => {
+    const key = l.patch ? `p${l.patch.layer}` : `d${i}`;
+    const g = groups.get(key) ?? { color: l.color, byH: new Map() };
+    const lh = heightOf(l);
+    g.byH.set(lh, [...(g.byH.get(lh) ?? []), l.cs]);
+    groups.set(key, g);
+  });
+  return [...groups.values()]
+    .map((g) => ({
+      color: g.color,
+      levels: [...g.byH].map(([h, css]) => ({ h, cs: clip(css.length > 1 ? CrossSection.union(css) : css[0]) })).filter((l) => !l.cs.isEmpty()),
+    }))
+    .filter((g) => g.levels.length);
+}
+
 export type CapGeometry = {
   solids: Solid[];
   /** Cap top z (plate frame), for stacking raised Decorations. */
@@ -111,18 +135,21 @@ export function buildCap(
   const clip = (cs: CrossSection) => cs.intersect(flat);
   if (opts.style === "inlay") {
     const depth = Math.max(0.4, opts.decoHeight);
-    const pieces = [...deco, ...rings].map((l) => ({ ...l, cs: clip(l.cs) })).filter((l) => !l.cs.isEmpty());
-    if (pieces.length) {
-      const cut = slab(CrossSection.union(pieces.map((p) => p.cs)), z1 - depth, z1 + 1);
+    const parts = partsOf([...deco, ...rings], () => depth, clip);
+    if (parts.length) {
+      const cut = slab(CrossSection.union(parts.flatMap((p) => p.levels.map((l) => l.cs))), z1 - depth, z1 + 1);
       cap = cap.subtract(cut);
-      pieces.forEach((p, i) => solids.push({ name: `${label} colour ${i + 1}`, color: p.color, m: slab(p.cs, z1 - depth, z1) }));
+      parts.forEach((p, i) => solids.push({ name: `${label} colour ${i + 1}`, color: p.color, m: slab(p.levels[0].cs, z1 - depth, z1) }));
     }
   } else {
-    // Raised: Decoration at full height, outline rings in lower steps.
+    // Raised: each patch at its own height (0 = inlaid flush), outline rings in lower steps.
     const h = Math.max(0.4, opts.decoHeight);
-    deco.forEach((l, i) => {
-      const cs = clip(l.cs);
-      if (!cs.isEmpty()) solids.push({ name: `${label} decoration ${i + 1}`, color: l.color, m: slab(cs, z1, z1 + h) });
+    const parts = partsOf(deco, (l) => l.h ?? h, clip);
+    const flush = parts.flatMap((p) => p.levels.filter((l) => l.h <= 0).map((l) => l.cs));
+    if (flush.length) cap = cap.subtract(slab(CrossSection.union(flush), z1 - FLUSH_DEPTH, z1 + 1));
+    parts.forEach((p, i) => {
+      const ms = p.levels.map((l) => (l.h > 0 ? slab(l.cs, z1, z1 + l.h) : slab(l.cs, z1 - FLUSH_DEPTH, z1)));
+      solids.push({ name: `${label} decoration ${i + 1}`, color: p.color, m: ms.length > 1 ? Manifold.union(ms) : ms[0] });
     });
     rings.forEach((l, i) => {
       const cs = clip(l.cs);

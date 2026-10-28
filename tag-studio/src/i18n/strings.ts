@@ -34,6 +34,17 @@ const S = {
   "picture.coloursHint": ["แต่ละสีพิมพ์เป็นเส้นพลาสติกคนละสี", "Each colour prints as its own filament"],
   "picture.colourN": ["สีที่", "Colour"],
   "picture.fromImage": ["สีจากรูป", "Colour in the picture"],
+  "heights.title": ["ความสูงแต่ละชั้น", "Layer heights"],
+  "heights.hint": ["แต่ละสีของรูปสูงไม่เท่ากันได้ · 0 = ฝังเรียบ · เกิน 4 มม. ส่วนที่บางอาจหัก · ชื่อและวงขอบใช้ความสูงลายนูน", "Each picture colour can stand at its own height · 0 = flush · above 4 mm, thin parts can snap · the name and rings keep the Raised height"],
+  "heights.pickHint": ["คลิกชิ้นในภาพ 3D เพื่อยกสูงเฉพาะชิ้นนั้น · Shift+คลิก เลือกหลายชิ้น", "Click a patch in the 3D preview to raise it on its own · Shift-click to pick more"],
+  "heights.pickTag": ["สลับไปดู “ป้ายนี้” เพื่อคลิกเลือกชิ้น", "Switch to “This tag” to click patches"],
+  "heights.selected": ["ชิ้นที่เลือก", "Selected patches"],
+  "heights.resetSel": ["กลับไปใช้ความสูงของสี", "Reset to colour"],
+  "heights.deselect": ["ยกเลิกการเลือก", "Deselect"],
+  "heights.own": ["ชิ้นตั้งความสูงเอง", "set on their own"],
+  "heights.reset": ["คืนค่า", "Reset"],
+  "heights.pop": ["ทำให้ลอยเด่น", "Make it pop"],
+  "heights.flatten": ["ทำให้เรียบเท่ากัน", "Flatten"],
   "picture.width": ["ความกว้างรูป", "Picture width"],
 
   "ai.title": ["✨ แปลงรูปเป็นการ์ตูนด้วย AI", "✨ AI cartoon"],
@@ -120,6 +131,7 @@ const S = {
 
   "warn.empty": ["ยังไม่มีรูปหรือชื่อ: อัปรูปหรือพิมพ์ชื่อ", "No picture or name yet: upload a picture or type a name"],
   "warn.apart": ["รูปกับชื่ออยู่ห่างกันมาก แผ่นป้ายเลยต่อกันเป็นทรงกว้าง ลองลดระยะห่าง", "The picture and name are far apart, so the plate was joined into a wide shape. Try a smaller gap."],
+  "warn.tall": ["มีชิ้นสูงเกิน 4 มม.: ส่วนที่บางอาจหักหรือโยกตอนพิมพ์", "Some patches stand over 4 mm: thin ones can snap or wobble while printing."],
   "warn.over4": ["เกิน 4 สี: AMS Lite ใส่ได้ 4 ม้วน ต้องเปลี่ยนม้วนเอง", "Over 4 colours: the AMS Lite holds 4 spools, so some need a manual swap"],
 } as const satisfies Record<string, readonly [string, string]>;
 

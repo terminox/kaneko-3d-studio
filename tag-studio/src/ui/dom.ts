@@ -36,19 +36,27 @@ export function field(label: string, control: Node, hint?: string): HTMLElement 
   return h("div", { class: "field" }, h("div", { class: "field-label" }, h("span", { text: label }), hint ? h("small", { text: hint }) : null), control);
 }
 
-/** A slider with a typed number box. `onInput` fires live; the panel is not re-rendered. */
-export function slider(label: StringKey, value: number, min: number, max: number, step: number, unit: string, onInput: (v: number) => void): HTMLElement {
+/**
+ * A slider with a typed number box. `onInput` fires live; the panel is not
+ * re-rendered. `label` is a string key or a ready-made node. Past `warnAbove`
+ * the slider turns amber.
+ */
+export function slider(label: StringKey | Node, value: number, min: number, max: number, step: number, unit: string, onInput: (v: number) => void, warnAbove?: number): HTMLElement {
   const num = h("input", { class: "num", attrs: { type: "number", min, max, step, value: String(value) } });
   const range = h("input", { attrs: { type: "range", min, max, step, value: String(value) } });
+  const wrap = h("div", { class: "slider" }, h("div", { class: "slider-head" }, typeof label === "string" ? h("span", { text: t(label) }) : label, h("span", { class: "unit" }, num, unit)), range);
+  const warn = (v: number) => wrap.classList.toggle("tall", warnAbove !== undefined && v > warnAbove);
   const set = (v: number, from: HTMLInputElement) => {
     if (!Number.isFinite(v)) return;
     if (from !== range) range.value = String(v);
     if (from !== num) num.value = String(v);
+    warn(v);
     onInput(v);
   };
   range.addEventListener("input", () => set(Number(range.value), range));
   num.addEventListener("change", () => set(Math.min(max, Math.max(min, Number(num.value))), num));
-  return h("div", { class: "slider" }, h("div", { class: "slider-head" }, h("span", { text: t(label) }), h("span", { class: "unit" }, num, unit)), range);
+  warn(value);
+  return wrap;
 }
 
 /** A row of buttons, one selected. */

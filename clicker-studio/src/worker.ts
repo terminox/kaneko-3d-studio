@@ -5,6 +5,7 @@ import { build, packPlates, type Group, type Part } from "./geometry/build.ts";
 import { parseIconSvg, type Assets, type Traced } from "./geometry/decoration.ts";
 import { platesTo3mf } from "./export/bambu.ts";
 import type { Design } from "./design/types.ts";
+import type { PatchInfo } from "./design/heights.ts";
 import { printTemplate } from "./export/template.ts";
 
 export type BuildRequest = { type: "build"; id: number; design: Design; traced: Record<string, Traced> };
@@ -28,6 +29,7 @@ export type BuildReply = {
   switches: [number, number][];
   loops: [number, number][];
   bottom: number;
+  patches: PatchInfo[];
   ms: number;
 };
 export type ExportReply = { type: "export"; id: number; data: Uint8Array; filaments: string[]; warnings: string[]; plates: number };
@@ -81,6 +83,7 @@ async function runBuilds() {
         switches: r.switches,
         loops: r.loops,
         bottom: r.bottom,
+        patches: r.patches,
         ms: performance.now() - t,
       };
       // The plate copies are new buffers; the assembled ones are too.

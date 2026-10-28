@@ -7,6 +7,7 @@ import { tagNames } from "../src/design/types.ts";
 import { withFace } from "./helpers.ts";
 import { nodeFont } from "../scripts/node-assets.ts";
 import { newTagDesign } from "../src/design/types.ts";
+import { FLUSH_DEPTH, setPatchHeights } from "@cs/design/heights.ts";
 
 beforeAll(async () => {
   await loadKernel();
@@ -130,4 +131,46 @@ test("a class set of 20 names packs onto plates with the tower corner free", asy
         expect(b.maxX > 256 - 8 - TOWER.w - 6 && b.maxY > 256 - 8 - TOWER.d - 6).toBe(false);
       }
   }
+});
+
+test("picture patches stand at their own heights; the name keeps the Raised height", async () => {
+  const { design, assets } = withFace(2);
+  const flat = await buildTag(design, "Miyu", assets);
+  // A face and two eyes.
+  expect(flat.patches.map((p) => p.layer).sort()).toEqual([0, 1, 1]);
+  expect(flat.patches.every((p) => p.h === design.plate.relief && p.owner === -1)).toBe(true);
+  expect(flat.patches.filter((p) => p.layer === 1).every((p) => p.depth === 1)).toBe(true);
+
+  // Eyes up to 3 mm as a colour, then one eye to 6 mm on its own.
+  design.picture.heights = { colour: [null, 3], pins: [] };
+  const eyes = flat.patches.filter((p) => p.layer === 1);
+  setPatchHeights(design.picture.heights, [eyes[0]], 6);
+  const r = await buildTag(design, "Miyu", assets);
+  expect(r.patches.filter((p) => p.layer === 1).map((p) => p.h).sort()).toEqual([3, 6]);
+  expect(r.warnings).toContain("warn.tall");
+  const T = design.plate.thickness;
+  const top = (color: string) => box(r.group.parts.find((p) => p.color === color)!.mesh).maxZ;
+  expect(top("#1E1E1E")).toBeCloseTo(T + 6, 3);
+  expect(top("#F7D046")).toBeCloseTo(T + design.plate.relief, 3);
+  expect(top(design.colours.name)).toBeCloseTo(T + design.plate.relief, 3);
+  const solids = r.group.parts.map((p) => manifold(p.mesh));
+  for (let i = 0; i < solids.length; i++)
+    for (let j = i + 1; j < solids.length; j++) expect(solids[i].intersect(solids[j]).volume()).toBeLessThan(0.01);
+});
+
+test("a 0 mm patch is inlaid flush into the plate", async () => {
+  const { design, assets } = withFace(2);
+  design.picture.heights = { colour: [0], pins: [] };
+  const r = await buildTag(design, "", assets);
+  const face = box(r.group.parts.find((p) => p.color === "#F7D046")!.mesh);
+  expect(face.maxZ).toBeCloseTo(design.plate.thickness, 3);
+  expect(face.minZ).toBeCloseTo(design.plate.thickness - FLUSH_DEPTH, 3);
+  const solids = r.group.parts.map((p) => manifold(p.mesh));
+  expect(solids[0].intersect(solids[1]).volume()).toBeLessThan(0.01);
+});
+
+test("a one-colour picture is one raisable patch", async () => {
+  const { design, assets } = withFace(1);
+  const r = await buildTag(design, "", assets);
+  expect(r.patches.length).toBe(1);
 });

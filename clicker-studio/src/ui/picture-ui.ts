@@ -73,8 +73,12 @@ async function tracePictureOf(design: Design): Promise<Record<string, Traced>> {
   if (!src) return {};
   const canvas = await renderPicture(src, useCartoon ? FULL : p.crop, useCartoon ? NO_ADJUST : p.adjust, 360);
   const traced = tracePicture(pixels(canvas), p);
-  // Keep the owner's colour choices when the colour count is unchanged.
-  if (p.palette.length !== traced.colours.length || !p.palette.length) p.palette = traced.colours.map(nearestFilament);
+  // Keep the owner's colour choices when the colour count is unchanged. A new
+  // split re-sorts the colours, so their heights start over; patch pins stay put.
+  if (p.palette.length !== traced.colours.length || !p.palette.length) {
+    p.palette = traced.colours.map(nearestFilament);
+    if (p.heights) p.heights.colour = [];
+  }
   return { [p.image]: traced };
 }
 
@@ -103,16 +107,20 @@ export async function traceDesign(design: Design, cache: Record<string, Traced> 
   return { ...(await traceKeyImagesOf(design, cache)), ...(await tracePictureOf(design)) };
 }
 
+// A retrace rebuilds every patch, so picks are dropped.
 export async function retracePicture(): Promise<void> {
   state.traced = { ...state.traced, ...(await tracePictureOf(state.design)) };
+  state.selected = [];
 }
 
 export async function retraceKeyImages(): Promise<void> {
   state.traced = { ...state.traced, ...(await traceKeyImagesOf(state.design, state.traced)) };
+  state.selected = [];
 }
 
 export async function retraceAll() {
   state.traced = await traceDesign(state.design, state.traced);
+  state.selected = [];
 }
 
 /** Sends the cropped picture to the AI cartoon endpoint; stores the result. */

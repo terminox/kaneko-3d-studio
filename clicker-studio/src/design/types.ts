@@ -26,13 +26,22 @@ export type Loop = "none" | "left" | "top" | "right" | "both";
 /** Which parts get exported. */
 export type PartsMode = "cap+base" | "caps" | "base" | "az-set";
 
+/** A patch's own height (mm), remembered by a spot on the traced picture (0–1, y down) so it survives a retrace. */
+export type Pin = { at: [number, number]; h: number };
+
+/**
+ * Heights of a picture's raised patches. A patch takes the last pin inside it,
+ * else its colour's height, else the default (the Decoration height).
+ */
+export type LayerHeights = { colour: (number | null)[]; pins: Pin[] };
+
 /** What sits on top of a Top Cap or Keycap. */
 export type Decoration =
   | { type: "none" }
   | { type: "text"; text: string; font: string }
   | { type: "icon"; icon: string }
   | { type: "emoji"; emoji: string }
-  | { type: "image"; image: string };
+  | { type: "image"; image: string; heights?: LayerHeights };
 
 export type Key = {
   deco: Decoration;
@@ -94,6 +103,8 @@ export type PictureOptions = {
   width: number;
   /** Use the AI cartoon version of the image when present. */
   useCartoon: boolean;
+  /** Raised style: per-colour and per-patch heights. */
+  heights?: LayerHeights;
 };
 
 export type ModelOptions = {

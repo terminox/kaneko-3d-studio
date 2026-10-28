@@ -4,8 +4,10 @@ import { FILAMENTS, PAIRS, filamentName } from "@cs/design/palette.ts";
 import { tagNames, type LoopSide, type NamePosition, type TagDesign } from "../design/types.ts";
 import { t, type StringKey } from "../i18n/strings.ts";
 import { button, field, h, pickFile, readDataUrl, section, segmented, slider, swatches, toggle } from "./dom.ts";
-import { changed, rerender, state } from "./state.ts";
-import { cartoonize, cropDialog, retracePicture } from "./picture-ui.ts";
+import type { LayerHeights } from "@cs/design/types.ts";
+import { MAX_HEIGHT, TALL, colourHeight, emptyHeights, flatten, makeItPop, remapPins, resetPatches, setColourHeight, setPatchHeights } from "@cs/design/heights.ts";
+import { changed, rerender, selectedPatches, selectionChanged, state } from "./state.ts";
+import { cartoonize, cropDialog, loadImage, retracePicture } from "./picture-ui.ts";
 
 const d = () => state.design;
 const swatchList = () => FILAMENTS.map((f) => ({ hex: f.hex, name: f[state.lang] }));
@@ -74,6 +76,7 @@ export function pictureCard(): HTMLElement {
       p.image = id;
       p.useCartoon = false;
       p.palette = [];
+      delete p.heights;
       p.crop = { x: 0, y: 0, w: 1, h: 1, rotate: 0 };
       const r = await cropDialog(d().files[id], p.crop, p.adjust);
       if (r) Object.assign(p, r);
@@ -90,6 +93,11 @@ export function pictureCard(): HTMLElement {
       button(`✂️ ${t("picture.crop")}`, async () => {
         const r = await cropDialog(d().files[p.image], p.crop, p.adjust);
         if (!r) return;
+        // Pins move with the picture under the new crop.
+        if (p.heights?.pins.length) {
+          const img = await loadImage(d().files[p.image]);
+          p.heights.pins = remapPins(p.heights.pins, p.crop, r.crop, img.naturalWidth, img.naturalHeight);
+        }
         Object.assign(p, r);
         p.useCartoon = false;
         await retraceAndRender();
@@ -97,6 +105,7 @@ export function pictureCard(): HTMLElement {
       button(`🗑 ${t("picture.remove")}`, () => {
         p.image = "";
         p.palette = [];
+        delete p.heights;
         d().files = {};
         state.traced = {};
         rerender();
@@ -187,6 +196,7 @@ export function pictureCard(): HTMLElement {
       ),
     );
   });
+  if (from.length) add(card, heightsBlock(() => (p.heights ??= emptyHeights()), p.heights, from.map((c, i) => p.palette[i] ?? c)));
   add(card,
     slider("picture.width", p.width, 15, 100, 1, "mm", (v) => {
       p.width = v;
@@ -194,6 +204,84 @@ export function pictureCard(): HTMLElement {
     }),
   );
   return card;
+}
+
+/* ---------- Layer heights ---------- */
+
+/** A dot in a colour, then a label. */
+function dotLabel(text: string, color?: string): HTMLElement {
+  return h("span", { class: "dot-label" }, color ? h("span", { class: "dot", style: `--c:${color}` }) : null, text);
+}
+
+/**
+ * Heights for the picture's patches: one slider per colour, the picked
+ * patches' own height, and Make it pop / Flatten. Follows Clicker Studio's
+ * heightsBlock. `get` creates the heights on first edit.
+ */
+function heightsBlock(get: () => LayerHeights, hs: LayerHeights | undefined, colours: string[]): HTMLElement {
+  const wrap = h("div", { class: "heights" }, h("div", { class: "field-label" }, h("span", { text: t("heights.title") }), h("small", { text: t("heights.hint") })));
+  const def = d().plate.relief;
+  // Buttons read the latest build when clicked; the panel may be older.
+  const live = () => (state.build?.plateView ? [] : (state.build?.patches ?? []));
+  const patches = live();
+  colours.forEach((c, i) => {
+    wrap.append(
+      slider(dotLabel(`${t("picture.colourN")} ${i + 1}`, c), colourHeight(hs, i, def), 0, MAX_HEIGHT, 0.2, "mm", (v) => {
+        setColourHeight(get(), i, v);
+        changed();
+      }, TALL),
+    );
+    const own = patches.filter((p) => p.layer === i && p.own);
+    if (own.length)
+      wrap.append(
+        h("div", { class: "own" }, h("span", { text: `${own.length} ${t("heights.own")}` }), button(`↺ ${t("heights.reset")}`, () => {
+          resetPatches(get(), live().filter((p) => p.layer === i && p.own));
+          rerender();
+        }, "ghost small")),
+      );
+  });
+  const sel = selectedPatches();
+  if (sel.length) {
+    wrap.append(
+      h(
+        "div",
+        { class: "sel-box" },
+        slider(dotLabel(`${t("heights.selected")}: ${sel.length}`, colours[sel[0].layer]), sel[0].h, 0, MAX_HEIGHT, 0.2, "mm", (v) => {
+          setPatchHeights(get(), selectedPatches(), v);
+          changed();
+        }, TALL),
+        h(
+          "div",
+          { class: "btn-row" },
+          button(`↺ ${t("heights.resetSel")}`, () => {
+            resetPatches(get(), selectedPatches());
+            rerender();
+          }, "ghost small"),
+          button(`✕ ${t("heights.deselect")}`, () => {
+            state.selected = [];
+            selectionChanged();
+          }, "ghost small"),
+        ),
+      ),
+    );
+  } else wrap.append(h("p", { class: "muted", text: t(state.build?.plateView ? "heights.pickTag" : "heights.pickHint") }));
+  const pop = button(`✨ ${t("heights.pop")}`, () => {
+    makeItPop(get(), live(), def);
+    rerender();
+  });
+  pop.disabled = !patches.length;
+  wrap.append(
+    h(
+      "div",
+      { class: "btn-row" },
+      pop,
+      button(`▭ ${t("heights.flatten")}`, () => {
+        flatten(get());
+        rerender();
+      }),
+    ),
+  );
+  return wrap;
 }
 
 /* ---------- Name ---------- */

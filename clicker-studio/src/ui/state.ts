@@ -6,8 +6,12 @@ import type { Traced } from "../geometry/decoration.ts";
 import type { BuildReply } from "../worker.ts";
 import type { Lang } from "../i18n/strings.ts";
 import { PAIRS } from "../design/palette.ts";
+import { samePt, type PatchInfo } from "../design/heights.ts";
 
 export type View = "assembled" | "print";
+
+/** A picked patch: its owner (-1 = the picture, else a key) and its point (see PatchInfo). */
+export type Selected = { owner: number; at: [number, number] };
 
 export type State = {
   design: Design;
@@ -28,6 +32,8 @@ export type State = {
   cartoonEnabled: boolean;
   /** Order export: one-colour pieces on plates of their own colour. */
   byColour: boolean;
+  /** Patches picked in the preview, for their own height. */
+  selected: Selected[];
 };
 
 const STORE = "clicker-studio:v1";
@@ -65,6 +71,7 @@ export const state: State = {
   error: "",
   cartoonEnabled: false,
   byColour: true,
+  selected: [],
 };
 
 /** Fills fields added after a Design was saved. */
@@ -81,8 +88,8 @@ export function upgrade(d: Design): Design {
   };
 }
 
-/** geometry: rebuild the model · panels: re-render and rebuild · status: repaint the status line only. */
-type Listener = (what: "geometry" | "panels" | "status") => void;
+/** geometry: rebuild the model · panels: re-render and rebuild · status: repaint the status line only · selection: re-render the panels and the highlight, no rebuild. */
+type Listener = (what: "geometry" | "panels" | "status" | "selection") => void;
 const listeners: Listener[] = [];
 export function subscribe(fn: Listener) {
   listeners.push(fn);
@@ -97,6 +104,16 @@ export function changed() {
 /** Status or warning text changed; nothing to rebuild. */
 export function statusChanged() {
   for (const l of listeners) l("status");
+}
+
+/** The built patches that are picked. */
+export function selectedPatches(): PatchInfo[] {
+  return (state.build?.patches ?? []).filter((p) => state.selected.some((s) => s.owner === p.owner && samePt(s.at, p.at)));
+}
+
+/** Picked patches changed. */
+export function selectionChanged() {
+  for (const l of listeners) l("selection");
 }
 
 /** Structural change: re-render the panels as well. */
@@ -149,6 +166,7 @@ export function switchKind(kind: Kind) {
   state.design = d;
   state.selectedKey = 0;
   state.traced = {};
+  state.selected = [];
 }
 
 function fontOf(k: Design["keys"][number]): string {

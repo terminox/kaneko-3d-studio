@@ -5,9 +5,11 @@ import type { FontSource } from "@cs/text/shape.ts";
 import { textRings } from "@cs/text/shape.ts";
 import { K, type CrossSection, type Manifold } from "@cs/geometry/kernel.ts";
 import { circle, offset, rings } from "@cs/geometry/outline.ts";
-import { ringsBounds, type Ring } from "@cs/geometry/path.ts";
-import { flipY, outlineRings, type Layer, type Traced } from "@cs/geometry/decoration.ts";
+import { ringsBounds } from "@cs/geometry/path.ts";
+import { outlineRings, type Layer, type Traced } from "@cs/geometry/decoration.ts";
 import { slab } from "@cs/geometry/cap.ts";
+import { patchRef, tracedPatches } from "@cs/geometry/patches.ts";
+import { FLUSH_DEPTH, TALL, type PatchInfo } from "@cs/design/heights.ts";
 import { packPlates, toMesh, type Group, type Plate } from "@cs/geometry/build.ts";
 import { tagNames, type TagDesign } from "../design/types.ts";
 
@@ -18,9 +20,11 @@ export type TagResult = {
   /** Keyring loop centre, when there is a loop. */
   loop: [number, number] | null;
   warnings: string[];
+  /** The picture's patches, for picking in the preview (tag frame). */
+  patches: PatchInfo[];
 };
 
-/** The picture's colour layers, `width` wide and centred on the origin. */
+/** The picture's patches, `width` wide and centred on the origin, each with its own height (if set). */
 function pictureLayers(design: TagDesign, traced: Record<string, Traced>): Layer[] {
   const p = design.picture;
   const t = p.image ? traced[p.image] : undefined;
@@ -28,10 +32,14 @@ function pictureLayers(design: TagDesign, traced: Record<string, Traced>): Layer
   // `width` is the width of the shape itself, not of the image around it.
   const ob = ringsBounds(t.outline);
   const s = p.width / (ob.w > 0 ? ob.w : t.width);
-  const scale = (rs: Ring[]) => flipY(rs).map((r) => r.map(([x, y]) => [x * s, y * s] as [number, number]));
   // One colour: the tracer gives no layers, the outline is the whole picture.
-  const src = t.layers.length ? t.layers : [{ color: p.palette[0] ?? "#1E1E1E", rings: t.outline }];
-  const layers = src.map((l, i) => ({ cs: rings(scale(l.rings), "EvenOdd"), color: p.palette[i] ?? l.color }));
+  const layers: Layer[] = tracedPatches(t, p.heights, true).map((q) => ({
+    cs: q.cs.scale(s),
+    color: p.palette[q.layer] ?? t.layers[q.layer]?.color ?? "#1E1E1E",
+    h: q.h,
+    patch: patchRef(q),
+  }));
+  if (!layers.length) return [];
   const b = K().CrossSection.union(layers.map((l) => l.cs)).bounds();
   const c: [number, number] = [-(b.min[0] + b.max[0]) / 2, -(b.min[1] + b.max[1]) / 2];
   return layers.map((l) => ({ ...l, cs: l.cs.translate(c) })).filter((l) => !l.cs.isEmpty());
@@ -157,7 +165,7 @@ export async function buildTag(design: TagDesign, name: string, assets: TagAsset
   for (const l of [...art, ...bands]) {
     const cs: CrossSection = covered ? l.cs.subtract(covered) : l.cs;
     covered = covered ? covered.add(l.cs) : l.cs;
-    if (!cs.isEmpty()) raised.push({ cs, color: l.color });
+    if (!cs.isEmpty()) raised.push({ ...l, cs });
   }
 
   let plate = plateOutline(covered!.simplify(0.05), design, warnings);
@@ -170,12 +178,40 @@ export async function buildTag(design: TagDesign, name: string, assets: TagAsset
   }
 
   // One part per colour; artwork in the plate's colour fuses into the plate.
-  const T = design.plate.thickness, top = T + design.plate.relief;
+  // Picture patches stand at their own height (0 = inlaid flush); the name
+  // and rings at the Raised height. Areas of one colour and height extrude together.
+  const T = design.plate.thickness, relief = design.plate.relief;
+  const levels = new Map<string, { color: string; byH: Map<number, CrossSection[]> }>();
+  const patches: PatchInfo[] = [];
+  for (const l of raised) {
+    const cs = hole ? l.cs.subtract(hole) : l.cs;
+    if (cs.isEmpty()) continue;
+    const h = l.h ?? relief;
+    const g = levels.get(l.color.toUpperCase()) ?? { color: l.color, byH: new Map() };
+    g.byH.set(h, [...(g.byH.get(h) ?? []), cs]);
+    levels.set(l.color.toUpperCase(), g);
+    if (l.patch) {
+      const { layer, at, pins, depth } = l.patch;
+      patches.push({ owner: -1, layer, at, pins, depth, h, own: pins.length > 0, top: T + h, rings: cs.simplify(0.05).toPolygons() as [number, number][][] });
+    }
+  }
   const byColour = new Map<string, Manifold[]>();
   const put = (color: string, m: Manifold) => byColour.set(color.toUpperCase(), [...(byColour.get(color.toUpperCase()) ?? []), m]);
-  put(design.colours.plate, slab(plate, 0, T));
-  for (const l of raised) put(l.color, slab(hole ? l.cs.subtract(hole) : l.cs, T, top));
+  const flush: CrossSection[] = [];
+  byColour.set(design.colours.plate.toUpperCase(), []);
+  for (const g of levels.values())
+    for (const [h, css] of g.byH) {
+      const cs = css.length > 1 ? CrossSection.union(css) : css[0];
+      if (h > 0) put(g.color, slab(cs, T, T + h));
+      else {
+        flush.push(cs);
+        put(g.color, slab(cs, T - FLUSH_DEPTH, T));
+      }
+    }
+  const base = slab(plate, 0, T);
+  byColour.get(design.colours.plate.toUpperCase())!.unshift(flush.length ? base.subtract(slab(CrossSection.union(flush), T - FLUSH_DEPTH, T + 1)) : base);
   if (byColour.size > 4) warnings.push("warn.over4");
+  if (patches.some((p) => p.h > TALL)) warnings.push("warn.tall");
 
   const label = name.trim() || "Tag";
   const parts = [...byColour].map(([color, ms], i) => ({
@@ -183,7 +219,7 @@ export async function buildTag(design: TagDesign, name: string, assets: TagAsset
     color,
     mesh: toMesh(ms.length > 1 ? K().Manifold.union(ms) : ms[0]),
   }));
-  return { group: { name: label, parts }, loop, warnings };
+  return { group: { name: label, parts }, loop, warnings, patches };
 }
 
 /** Every name's tag, packed onto A1 plates with the prime-tower corner kept free. */

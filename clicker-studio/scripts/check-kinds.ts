@@ -9,6 +9,8 @@ import { newDesign, type Design } from "../src/design/types.ts";
 import { platesTo3mf } from "../src/export/bambu.ts";
 import { tracePicture, type Img } from "../src/picture/process.ts";
 import type { Traced } from "../src/geometry/decoration.ts";
+import { tracedPatches } from "../src/geometry/patches.ts";
+import { setPatchHeights } from "../src/design/heights.ts";
 import { writeBinaryStl } from "../../model-maker/src/pipeline/mesh.ts";
 import { loadTemplate } from "../../model-maker/scripts/templates.ts";
 import { checkSlice, slice } from "../../model-maker/scripts/bambu-cli.ts";
@@ -32,7 +34,8 @@ function face(): Img {
   return { width: w, height: h, data };
 }
 
-const fixtures: Record<string, () => { design: Design; traced: Record<string, Traced> }> = {
+/** `expect`: warnings the fixture is meant to raise. */
+const fixtures: Record<string, () => { design: Design; traced: Record<string, Traced>; expect?: string[] }> = {
   cap: () => {
     const d = newDesign("cap");
     d.cap.shape = "cat";
@@ -72,6 +75,28 @@ const fixtures: Record<string, () => { design: Design; traced: Record<string, Tr
     };
     return { design: d, traced: { face: t } };
   },
+  layered: () => {
+    // Raised picture with layer heights: a flush face, 3 mm eyes, and the mouth on its own at 6 mm.
+    const t = tracePicture(face(), { removeBackground: true, bgStrength: 70, punchHoles: false, colors: 2 });
+    const d = newDesign("picture");
+    d.cap.style = "raised";
+    d.picture = {
+      image: "face",
+      crop: { x: 0, y: 0, w: 1, h: 1, rotate: 0 },
+      adjust: { brightness: 0, contrast: 0, saturation: 0 },
+      removeBackground: true,
+      bgStrength: 70,
+      punchHoles: false,
+      colors: 2,
+      palette: ["#F7D046", "#1E1E1E"],
+      width: 42,
+      useCartoon: false,
+      heights: { colour: [0, 3], pins: [] },
+    };
+    const mouth = tracedPatches(t).filter((p) => p.layer === 1).sort((a, b) => b.at[1] - a.at[1])[0];
+    setPatchHeights(d.picture.heights!, [mouth], 6);
+    return { design: d, traced: { face: t }, expect: ["warn.tall"] };
+  },
   fluted: () => {
     const d = newDesign("fluted");
     d.keys = [..."LOVE"].map((c, i) => ({ ...d.keys[0], baseColor: ["#F4B6C8", "#9ED9D0", "#F7D046", "#C7B3E6"][i], deco: { type: "text", text: c, font: "Fredoka-700" } }));
@@ -97,7 +122,7 @@ mkdirSync("out/kinds", { recursive: true });
 let failed = 0;
 for (const [name, make] of Object.entries(fixtures)) {
   if (only.length && !only.includes(name)) continue;
-  const { design, traced } = make();
+  const { design, traced, expect = [] } = make();
   const r = await build(design, { ...nodeAssets(), traced });
   const plates = packPlates(r.print, { byColour: name === "fluted" });
   const { data } = platesTo3mf(name, plates, loadTemplate());
@@ -105,7 +130,8 @@ for (const [name, make] of Object.entries(fixtures)) {
   writeFileSync(file, data);
   const { result } = slice(file, resolve(`out/kinds/${name}-slice`));
   const problems = [
-    ...r.warnings.map((w) => `warning ${w}`),
+    ...r.warnings.filter((w) => !expect.includes(w)).map((w) => `warning ${w}`),
+    ...expect.filter((w) => !r.warnings.includes(w)).map((w) => `missing warning ${w}`),
     ...checkSlice(result, { plates: plates.length, filamentsPerPlate: plates.map((p) => new Set(p.groups.flatMap((g) => g.parts.map((x) => x.color.toUpperCase()))).size) }),
   ];
   const p = result?.sliced_plates?.[0];

@@ -7,6 +7,8 @@ import { buildCap, skirtExposed, type Solid } from "./cap.ts";
 import { baseFootprint, baseLevels, buildBase, loopCentres, type BaseKey } from "./base.ts";
 import { ringsBounds } from "./path.ts";
 import { decorationLayers, fitLayers, flipY, outlineRings, type Assets, type Layer } from "./decoration.ts";
+import { patchRef, tracedPatches } from "./patches.ts";
+import { TALL, type PatchInfo } from "../design/heights.ts";
 import { keyCells } from "./layout.ts";
 import { buildChain, chainPitch } from "./chain.ts";
 import { modelSpec } from "./model-cap.ts";
@@ -26,6 +28,8 @@ export type BuildResult = {
   /** Keyring loop centres and the Base bottom z, for the preview's chain. */
   loops: [number, number][];
   bottom: number;
+  /** Raised picture patches, for picking in the preview (assembled frame). */
+  patches: PatchInfo[];
 };
 
 export function toMesh(m: Manifold): Mesh {
@@ -74,7 +78,12 @@ function pictureSpec(design: Design, assets: Assets): { outline: CrossSection; d
   outline = outline.translate(c);
   // Smooth tiny notches so the skirt and Base wall stay printable.
   outline = offset(offset(outline, 0.6), -0.6);
-  const deco = t.layers.map((l, i) => ({ cs: ringsCs(scale(l.rings), "EvenOdd").translate(c), color: p.palette[i] ?? l.color }));
+  const deco = tracedPatches(t, p.heights).map((q) => ({
+    cs: q.cs.scale(s).translate(c),
+    color: p.palette[q.layer] ?? t.layers[q.layer].color,
+    h: q.h,
+    patch: patchRef(q),
+  }));
   return { outline, deco };
 }
 
@@ -130,12 +139,14 @@ export async function build(design: Design, assets: Assets): Promise<BuildResult
   const wantCaps = design.parts !== "base";
   const wantBase = design.parts === "cap+base" || design.parts === "base";
 
+  const patches: PatchInfo[] = [];
   if (wantCaps) {
-    for (const c of caps) {
+    for (const [i, c] of caps.entries()) {
       const g = buildCap(c.outline, design.kind === "model" ? { ...cap, style: "raised" } : cap, fit, c.key.capColor, c.deco, keyRings(c.key, c.deco, design), c.label);
       // A 3D model stands on the cap top, fused into the cap.
       if (c.extra) g.solids[0].m = g.solids[0].m.add(c.extra.translate([0, 0, g.top - 0.2]));
       for (const s of g.solids) assembled.push(part(s, c.at));
+      if (cap.style === "raised") patches.push(...capPatches(c, g.top, design.kind === "picture" ? -1 : i, Math.max(0.4, cap.decoHeight)));
       // Print: raised caps stand on their skirt; inlaid caps lie face down.
       const flip = cap.style === "inlay";
       print.push({ name: c.label, parts: g.solids.map((s) => ({ name: s.name, color: s.color, mesh: toMesh(flip ? s.m.rotate([180, 0, 0]) : s.m) })) });
@@ -165,11 +176,24 @@ export async function build(design: Design, assets: Assets): Promise<BuildResult
     if (room.subtract(inner).area() > 0.01) warnings.push("warn.pocket");
   }
   const loops = foot && wantBase && design.kind !== "fluted" ? loopCentres(foot, base.loop, base.loopHole / 2) : [];
+  if (patches.some((p) => p.h > TALL)) warnings.push("warn.tall");
   if (caps.length && wantCaps && wantBase && design.kind !== "model") {
     const rimTop = baseLevels(base, fit).wallTop;
     if (caps.some((c) => skirtExposed(c.outline, fit, rimTop))) warnings.push("warn.smallCap");
   }
-  return { assembled, print, warnings, switches: wantBase || design.parts === "cap+base" ? baseKeys.map((k) => k.at) : [], loops, bottom: baseLevels(base, fit).bottom };
+  return { assembled, print, warnings, switches: wantBase || design.parts === "cap+base" ? baseKeys.map((k) => k.at) : [], loops, bottom: baseLevels(base, fit).bottom, patches };
+}
+
+/** A cap's raised picture patches, as the preview picks them (footprints not clipped to the flat top: close enough to click). */
+function capPatches(c: CapSpec, top: number, owner: number, def: number): PatchInfo[] {
+  const out: PatchInfo[] = [];
+  for (const l of c.deco) {
+    if (!l.patch) continue;
+    const h = l.h ?? def;
+    const rings = l.cs.translate(c.at).simplify(0.05).toPolygons() as [number, number][][];
+    out.push({ owner, layer: l.patch.layer, at: l.patch.at, pins: l.patch.pins, depth: l.patch.depth, h, own: l.patch.pins.length > 0, top: top + h, rings });
+  }
+  return out;
 }
 
 function part(s: Solid, at: [number, number]): Part {
