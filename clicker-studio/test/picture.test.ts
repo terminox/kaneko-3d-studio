@@ -70,11 +70,10 @@ test("a picture Design builds a cap and base shaped like the picture", async () 
   const plates = packPlates(r.print);
   const cap = plates[0].groups.find((g) => g.name === "Top Cap")!;
   expect(cap.parts.map((p) => p.color)).toEqual(["#FFFFFF", "#F7D046", "#1E1E1E"]);
-  // About 40 mm across.
+  // The picture is 40 mm across; the cap adds the border on each side.
   const v = r.assembled[0].mesh.vertices;
   let minX = Infinity, maxX = -Infinity;
   for (let i = 0; i < v.length; i += 3) (minX = Math.min(minX, v[i])), (maxX = Math.max(maxX, v[i]));
-  expect(maxX - minX).toBeGreaterThan(36);
-  expect(maxX - minX).toBeLessThan(42);
+  expect(maxX - minX).toBeCloseTo(40 + 2 * design.cap.border, 1);
   void K;
 });

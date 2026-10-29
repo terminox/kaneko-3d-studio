@@ -635,15 +635,22 @@ function pictureCard(): HTMLElement {
   add(card, styleField());
   if (traced?.layers.length) add(card, heightsBlock(-1, () => (p.heights ??= emptyHeights()), p.heights, traced.layers.map((l, i) => p.palette[i] ?? l.color)));
   else if (d().cap.style === "raised") add(card, h("p", { class: "muted", text: t("heights.needColours") }));
+  // The border is added around the picture, so the cap is the picture plus the border on each side.
+  const capNote = h("p", { class: "muted" });
+  const showCapWidth = () => (capNote.textContent = t("picture.capWidth").replace("{w}", String(Math.round((p.width + 2 * d().cap.border) * 10) / 10)));
+  showCapWidth();
   add(card, 
     slider("picture.width", p.width, 24, 80, 1, "mm", (v) => {
       p.width = v;
+      showCapWidth();
       changed();
     }),
     slider("picture.border", d().cap.border, 0, 3, 0.1, "mm", (v) => {
       d().cap.border = v;
+      showCapWidth();
       changed();
     }),
+    capNote,
     field(
       t("base.shape"),
       segmented(

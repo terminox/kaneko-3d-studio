@@ -212,7 +212,7 @@ describe("picture border", () => {
     }
   });
 
-  test("a picture Design's border sets how far the colours stay in from the cap edge", async () => {
+  test("a picture Design's border grows the cap and Base outward; the picture keeps its width", async () => {
     const design: Design = newDesign("picture");
     design.cap.style = "raised";
     design.picture = {
@@ -228,14 +228,27 @@ describe("picture border", () => {
       useCartoon: false,
     };
     const traced = { p: { ...picture(), anchor: [50, 50] as [number, number] } };
-    const width = async (border: number, name: string) => {
+    const run = async (border: number) => {
       design.cap.border = border;
-      const v = (await build(design, { ...assets, traced })).assembled.find((p) => p.name === name)!.mesh.vertices;
+      return build(design, { ...assets, traced });
+    };
+    const width = async (border: number, name: string) => {
+      const v = (await run(border)).assembled.find((p) => p.name === name)!.mesh.vertices;
       let min = Infinity, max = -Infinity;
       for (let i = 0; i < v.length; i += 3) (min = Math.min(min, v[i])), (max = Math.max(max, v[i]));
       return max - min;
     };
     expect(await width(0, "Top Cap decoration 1")).toBeCloseTo(await width(0, "Top Cap"), 1);
-    expect(await width(1.2, "Top Cap decoration 1")).toBeCloseTo(40 - 2.4, 1);
+    for (const border of [1.2, 3]) {
+      expect(await width(border, "Top Cap decoration 1")).toBeCloseTo(40, 1);
+      expect(await width(border, "Top Cap")).toBeCloseTo(40 + 2 * border, 1);
+      expect((await width(border, "Base")) - (await width(0, "Base"))).toBeCloseTo(2 * border, 1);
+    }
+    // No overlap between the cap body and the picture, and every part is one solid piece.
+    const r = await run(1.2);
+    expect(r.warnings).not.toContain("warn.smallCap");
+    expect(r.warnings).not.toContain("warn.pocket");
+    for (const border of [0, 0.8]) expect((await run(border)).warnings).not.toContain("warn.thinBorder");
+    expect((await run(0.4)).warnings).toContain("warn.thinBorder");
   });
 });

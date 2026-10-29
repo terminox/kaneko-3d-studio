@@ -32,6 +32,9 @@ export type BuildResult = {
   patches: PatchInfo[];
 };
 
+/** A picture border narrower than this (two 0.4 mm print lines) does not print cleanly. */
+export const THIN_BORDER = 0.8;
+
 export function toMesh(m: Manifold): Mesh {
   const g = m.getMesh();
   const n = g.numProp;
@@ -63,7 +66,11 @@ function keyRings(key: Key, deco: Layer[], design: Design): Layer[] {
   return outlineRings(deco, design.cap.outlineWidth, key.outline).map((cs, i) => ({ cs, color: key.outlineColors[i] }));
 }
 
-/** Picture Designs: the cap Outline and colour layers come from the traced image. */
+/**
+ * Picture Designs: the cap Outline and colour layers come from the traced
+ * image. The picture is `width` wide; the cap border is added around it, so
+ * the cap (and the Base with it) grows and the picture is never cut into.
+ */
 function pictureSpec(design: Design, assets: Assets): { outline: CrossSection; deco: Layer[] } | null {
   const p = design.picture;
   const t = p && assets.traced[p.image];
@@ -72,13 +79,13 @@ function pictureSpec(design: Design, assets: Assets): { outline: CrossSection; d
   const ob = ringsBounds(t.outline);
   const s = p.width / (ob.w > 0 ? ob.w : t.width);
   const scale = (rs: typeof t.outline) => flipY(rs).map((r) => r.map(([x, y]) => [x * s, y * s] as [number, number]));
-  let outline = ringsCs(scale(t.outline), "EvenOdd");
+  let art = ringsCs(scale(t.outline), "EvenOdd");
   // The Switch sits at the anchor (the widest point of the shape), else the centre.
-  const b = outline.bounds();
+  const b = art.bounds();
   const c: [number, number] = t.anchor ? [-t.anchor[0] * s, t.anchor[1] * s] : [-(b.min[0] + b.max[0]) / 2, -(b.min[1] + b.max[1]) / 2];
-  outline = outline.translate(c);
-  // Smooth tiny notches so the skirt and Base wall stay printable.
-  outline = offset(offset(outline, 0.6), -0.6);
+  art = art.translate(c);
+  // Grow by the border, then smooth tiny notches so the skirt and Base wall stay printable.
+  const outline = offset(offset(art, Math.max(0, design.cap.border) + 0.6), -0.6);
   const deco = tracedPatches(t, p.heights).map((q) => ({
     cs: q.cs.scale(s).translate(c),
     color: p.palette[q.layer] ?? t.layers[q.layer].color,
@@ -99,7 +106,9 @@ export async function build(design: Design, assets: Assets): Promise<BuildResult
     if (!ps) warnings.push("warn.noPicture");
     const outline = ps?.outline ?? capOutline("circle", 30, 0);
     const deco = ps?.deco ?? [];
+    // The border already surrounds the picture, so the inset only trims what the outward offset smoothed.
     caps.push({ key: design.keys[0], outline, at: [0, 0], deco, label: "Top Cap", inset: cap.border });
+    if (cap.border > 0 && cap.border < THIN_BORDER) warnings.push("warn.thinBorder");
     baseKeys = [{ at: [0, 0], outline }];
   } else if (design.kind === "model") {
     const ms = modelSpec(design, warnings);

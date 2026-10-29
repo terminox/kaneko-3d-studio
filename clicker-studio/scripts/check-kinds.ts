@@ -61,7 +61,7 @@ const fixtures: Record<string, () => { design: Design; traced: Record<string, Tr
     const t = tracePicture(face(), { removeBackground: true, bgStrength: 70, punchHoles: false, colors: 2 });
     const d = newDesign("picture");
     d.cap.style = "inlay";
-    d.cap.border = 0;
+    d.cap.border = 1.2; // outward: the cap and Base grow around the picture
     d.picture = {
       image: "face",
       crop: { x: 0, y: 0, w: 1, h: 1, rotate: 0 },
