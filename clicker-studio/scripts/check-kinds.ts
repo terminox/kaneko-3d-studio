@@ -112,6 +112,28 @@ const fixtures: Record<string, () => { design: Design; traced: Record<string, Tr
     d.keys[0].capColor = "#8A5A3C";
     return { design: d, traced: {} };
   },
+  wide: () => {
+    // A wide cap on two Switches: a 70 × 24 bar picture.
+    const w = 280, h = 96;
+    const data = new Uint8ClampedArray(w * h * 4);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) data.set(Math.hypot(Math.max(0, Math.abs(x - 140) - 92), Math.max(0, Math.abs(y - 48) - 0)) < 48 ? [124, 199, 232, 255] : [255, 255, 255, 0], (y * w + x) * 4);
+    const t = tracePicture({ width: w, height: h, data }, { removeBackground: true, bgStrength: 70, punchHoles: false, colors: 1 });
+    const d = newDesign("picture");
+    d.cap.border = 1.2;
+    d.picture = {
+      image: "bar",
+      crop: { x: 0, y: 0, w: 1, h: 1, rotate: 0 },
+      adjust: { brightness: 0, contrast: 0, saturation: 0 },
+      removeBackground: true,
+      bgStrength: 70,
+      punchHoles: false,
+      colors: 1,
+      palette: ["#7CC7E8"],
+      width: 70,
+      useCartoon: false,
+    };
+    return { design: d, traced: { bar: t } };
+  },
   "az-set": () => {
     const d = newDesign("cap");
     d.parts = "az-set";
@@ -126,6 +148,7 @@ for (const [name, make] of Object.entries(fixtures)) {
   if (only.length && !only.includes(name)) continue;
   const { design, traced, expect = [] } = make();
   const r = await build(design, { ...nodeAssets(), traced });
+  const switches = r.switchesPerCap > 1 ? `${r.switchesPerCap} switches, ` : "";
   const plates = packPlates(r.print, { byColour: name === "fluted" });
   const { data } = platesTo3mf(name, plates, loadTemplate());
   const file = resolve(`out/kinds/${name}.3mf`);
@@ -137,7 +160,7 @@ for (const [name, make] of Object.entries(fixtures)) {
     ...checkSlice(result, { plates: plates.length, filamentsPerPlate: plates.map((p) => new Set(p.groups.flatMap((g) => g.parts.map((x) => x.color.toUpperCase()))).size) }),
   ];
   const p = result?.sliced_plates?.[0];
-  console.log(`${name.padEnd(8)} ${problems.length ? "FAIL" : "ok  "} ${p ? `${(p.total_predication / 60).toFixed(0)} min, ${p.filaments.map((f) => `${f.total_used_g.toFixed(1)} g`).join(" + ")}` : ""} ${problems.join("; ")}`);
+  console.log(`${name.padEnd(8)} ${problems.length ? "FAIL" : "ok  "} ${switches}${p ? `${(p.total_predication / 60).toFixed(0)} min, ${p.filaments.map((f) => `${f.total_used_g.toFixed(1)} g`).join(" + ")}` : ""} ${problems.join("; ")}`);
   if (problems.length) failed++;
 }
 process.exit(failed ? 1 : 0);

@@ -29,7 +29,12 @@ for (let i = 0; i < args.length; i++) {
   else if (a === "--shape") (quick ??= newDesign("cap")).cap.shape = args[++i] as Design["cap"]["shape"];
   else if (a === "--texture") (quick ??= newDesign("cap")).base.texture = args[++i] as Design["base"]["texture"];
   else if (a === "--parts") (quick ??= newDesign("cap")).parts = args[++i] as Design["parts"];
-  else designs.push(JSON.parse(readFileSync(resolve(a), "utf8")) as Design);
+  else {
+    // Fill in fields added since the file was saved, as the app's `upgrade` does.
+    const saved = JSON.parse(readFileSync(resolve(a), "utf8")) as Design;
+    const fresh = newDesign(saved.kind ?? "cap");
+    designs.push({ ...fresh, ...saved, cap: { ...fresh.cap, ...saved.cap }, base: { ...fresh.base, ...saved.base }, fit: { ...fresh.fit, ...saved.fit } });
+  }
 }
 if (quick) designs.push(quick);
 if (!designs.length) {

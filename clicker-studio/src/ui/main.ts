@@ -3,10 +3,10 @@ import "./style.css";
 import { newDesign, type Design } from "../design/types.ts";
 import { t, tr, setLang } from "../i18n/strings.ts";
 import { button, download, h, pickFile, segmented } from "./dom.ts";
-import { changed, rerender, selectedPatches, selectionChanged, state, subscribe, upgrade } from "./state.ts";
+import { changed, rerender, save, selectedPatches, selectionChanged, state, subscribe, upgrade } from "./state.ts";
 import { Viewport } from "./viewport.ts";
 import { onBuilt, requestBuild, requestExport } from "./engine.ts";
-import { baseCard, capCard, colourCard, contentCard, fitCard, kindCard, loadCatalogs, nameField, orderCard, type FontInfo } from "./panels.ts";
+import { baseCard, capCard, colourCard, contentCard, fitCard, kindCard, loadCatalogs, nameField, orderCard, switchesCard, type FontInfo } from "./panels.ts";
 import { cartoonAvailable, retraceAll } from "./picture-ui.ts";
 import { setSnapshot } from "./order-ui.ts";
 import { patchAt, samePt } from "../design/heights.ts";
@@ -155,7 +155,7 @@ function renderPanels() {
   const keepScroll = [left.scrollTop, right.scrollTop];
   left.replaceChildren(kindCard(), ...[contentCard(), colourCard()].filter((x): x is HTMLElement => Boolean(x)));
   right.replaceChildren(
-    ...[nameFieldCard(), capCard(), baseCard(), fitCard(), orderCard()].filter((x): x is HTMLElement => Boolean(x)),
+    ...[nameFieldCard(), capCard(), baseCard(), switchesCard(), fitCard(), orderCard()].filter((x): x is HTMLElement => Boolean(x)),
   );
   [left.scrollTop, right.scrollTop] = keepScroll;
 }
@@ -231,9 +231,15 @@ onBuilt((r) => {
     showModel();
     // Keep picks whose patch still exists (a retrace rebuilds them all).
     const kept = state.selected.filter((s) => r.patches.some((p) => p.owner === s.owner && samePt(s.at, p.at)));
-    // The height tools list the patches: refresh them when the patches change,
-    // unless a slider is mid-drag.
-    if (kept.length !== state.selected.length || (patchKey(r) !== before && !editing())) {
+    // The Switch count is placed by the build; the price and order sheet read it from the Design.
+    const switchesChanged = r.switchesPerCap !== state.design.placedSwitches;
+    if (switchesChanged) {
+      state.design.placedSwitches = r.switchesPerCap;
+      save("design", state.design);
+    }
+    // The height tools list the patches and the Switch note shows the count:
+    // refresh them when either changes, unless a slider is mid-drag.
+    if (kept.length !== state.selected.length || ((patchKey(r) !== before || switchesChanged) && !editing())) {
       state.selected = kept;
       renderPanels();
     }

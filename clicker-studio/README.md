@@ -29,6 +29,10 @@ The preview needs WebGL. For the **AI cartoon** button, copy `.env.example` to `
 
 "Parts to print" switches between Cap + Base, Caps only, the A–Z set (26 keycaps) and Base only.
 
+## Switches under a large cap
+
+A big cap on one switch binds when pressed off-centre and lets its far edge droop, so a shared cap (Single key, Picture, 3D model) gets as many switches as its size needs, placed automatically ([ADR 0009](../docs/adr/0009-multi-switch-shared-caps.md)). The rule follows keyboards, which stabilise any key from 2u (38 mm) up: every point of the cap must lie within the **reach** (22 mm) of a switch. A 40 mm round cap keeps one switch, a 60 × 20 mm bar gets two, a 45 mm round cap three, a 50 mm square four. Positions come from the cap's shape (`src/geometry/switches.ts`): two go on the long axis, three or four balance the area, and every spot keeps the housing inside the cap wall and the pocket inside the Base, at least the **pitch** (18 mm) apart. The first switch sits where it always did; the others get a little extra stem fit so the cap never binds on print tolerance. Simple mode shows the count; Advanced mode can force 1–4 (it falls back to as many as fit and says so) and tunes reach, pitch and extra stem fit in the Fit panel. A cap that even four switches can't cover warns. Note that each extra switch adds its actuation force: two 45 g switches press at about 90 g.
+
 ## Layer heights
 
 In the Raised style, a picture (the Picture kind, or a picture on a key) can stand in layers ([ADR 0007](../docs/adr/0007-per-patch-layer-heights.md)). Each traced colour gets a height slider (0–8 mm; 0 is flush). Click a patch in the 3D preview to give that patch its own height, and Shift-click to pick several. **Make it pop** raises what sits inside other patches (pupils on eyes, eyes on the face). **Flatten** resets everything. Above 4 mm the slider turns amber and a warning shows. Heights stay with their spot on the picture through a retrace or a re-crop.
@@ -36,7 +40,7 @@ In the Raised style, a picture (the Picture kind, or a picture on a key) can sta
 ## Your settings files
 
 - `filaments.json`: the filament colours you stock (hex plus Thai and English names). Swatches, colour pairs and the order sheet use it.
-- `pricing.json`: **placeholder prices**. Replace them with yours. Price = the kind's base price, plus extra keys, plus extras (cord, texture, AI cartoon, colours beyond 4).
+- `pricing.json`: **placeholder prices**. Replace them with yours. Price = the kind's base price, plus extra keys, plus extra switches under a shared cap, plus extras (cord, texture, AI cartoon, colours beyond 4).
 - The print profile is Model Maker's: `../model-maker/profiles/project-template.json` if you made one (ticket 04), else the stock A1 / Generic PLA one.
 
 ## Fit
@@ -52,7 +56,7 @@ One 3MF per Design (the header button) or per Order. Parts are packed onto 256 m
 ## Command line
 
 ```sh
-bun test                              # geometry, text, picture and kind tests
+bun test                              # geometry, text, picture, switch placement and kind tests
 bun scripts/check-kinds.ts            # build one fixture per kind, slice each with the Bambu Studio CLI
 bun run make --text MAA --validate    # quick Design → out/*.3mf, sliced
 bun run make out/x.clicker.json       # a saved Design
@@ -63,9 +67,9 @@ bun scripts/min-sizes.ts              # smallest warning-free cap size per shape
 
 ```
 src/design/     types.ts (Design), palette.ts, price.ts, order.ts, heights.ts (layer height edits, picking)
-src/geometry/   kernel, switch (Fit), outline, cap, base, texture, layout, chain, model-cap,
-                decoration, patches (picture islands + heights), symbols, path (SVG paths),
-                build.ts (Design → parts, plate packing)
+src/geometry/   kernel, switch (Fit), switches (where the switches go under a shared cap), outline,
+                cap, base, texture, layout, chain, model-cap, decoration, patches (picture islands
+                + heights), symbols, path (SVG paths), build.ts (Design → parts, plate packing)
 src/text/       shape.ts: HarfBuzz text shaping with per-character font fallback
 src/picture/    process.ts: background removal, holes, Lab k-means colour split, tracing
 src/export/     bambu.ts (→ Model Maker's 3MF writer), template.ts

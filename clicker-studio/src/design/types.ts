@@ -73,6 +73,8 @@ export type CapOptions = {
   outlineWidth: number;
   /** Picture Designs: cap colour left around the picture, mm. 0 = the picture reaches the edge. */
   border: number;
+  /** Switches under a shared cap (cap, picture, model): 0 = as many as its size needs, else 1–4. */
+  switches: 0 | 1 | 2 | 3 | 4;
 };
 
 export type BaseOptions = {
@@ -141,6 +143,8 @@ export type Design = {
   fit: Fit;
   /** Embedded files (images, models) as data URLs, by id. */
   files: Record<string, string>;
+  /** Switches the last build placed under the shared cap. Derived; the price and order sheet read it. */
+  placedSwitches?: number;
 };
 
 export const DEFAULT_KEY: Key = {
@@ -173,6 +177,7 @@ export function newDesign(kind: Kind = "cap"): Design {
       decoHeight: 0.8,
       outlineWidth: 1.2,
       border: 1.2,
+      switches: 0,
     },
     base: {
       shape: "follow",

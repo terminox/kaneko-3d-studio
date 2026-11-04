@@ -27,6 +27,7 @@ export type BuildReply = {
   plates: { name: string; groups: Group[] }[];
   warnings: string[];
   switches: [number, number][];
+  switchesPerCap: number;
   loops: [number, number][];
   bottom: number;
   patches: PatchInfo[];
@@ -81,6 +82,7 @@ async function runBuilds() {
         plates,
         warnings: r.warnings,
         switches: r.switches,
+        switchesPerCap: r.switchesPerCap,
         loops: r.loops,
         bottom: r.bottom,
         patches: r.patches,

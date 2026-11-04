@@ -4,7 +4,8 @@ import type { Mesh } from "@mm/pipeline/mesh.ts";
 import { K, type CrossSection, type Manifold } from "./kernel.ts";
 import { capOutline, centredOnSwitch, offset, rings as ringsCs } from "./outline.ts";
 import { buildCap, skirtExposed, type Solid } from "./cap.ts";
-import { baseFootprint, baseLevels, buildBase, loopCentres, type BaseKey } from "./base.ts";
+import { baseFootprint, baseLevels, buildBase, keySwitches, loopCentres, type BaseKey } from "./base.ts";
+import { placeSwitches } from "./switches.ts";
 import { ringsBounds } from "./path.ts";
 import { decorationLayers, fitLayers, flipY, outlineRings, type Assets, type Layer } from "./decoration.ts";
 import { patchRef, tracedPatches } from "./patches.ts";
@@ -25,6 +26,8 @@ export type BuildResult = {
   warnings: string[];
   /** Switch centres (plate frame), for the preview's switch ghosts. */
   switches: [number, number][];
+  /** Switches under each shared cap (1 for every other kind). */
+  switchesPerCap: number;
   /** Keyring loop centres and the Base bottom z, for the preview's chain. */
   loops: [number, number][];
   bottom: number;
@@ -48,8 +51,8 @@ export function toMesh(m: Manifold): Mesh {
   return { vertices, triangles: new Uint32Array(g.triVerts) };
 }
 
-/** `inset`: how far the Decoration stays in from the outline (default: the flat top). */
-type CapSpec = { key: Key; outline: CrossSection; at: [number, number]; deco: Layer[]; label: string; extra?: Manifold; inset?: number };
+/** `inset`: how far the Decoration stays in from the outline (default: the flat top). `switches`: stem centres, cap-local. */
+type CapSpec = { key: Key; outline: CrossSection; at: [number, number]; deco: Layer[]; label: string; extra?: Manifold; inset?: number; switches?: [number, number][] };
 
 /** Fits a key's Decoration into its cap's flat top. */
 async function keyDeco(key: Key, outline: CrossSection, design: Design, assets: Assets): Promise<Layer[]> {
@@ -101,20 +104,31 @@ export async function build(design: Design, assets: Assets): Promise<BuildResult
   const caps: CapSpec[] = [];
   let baseKeys: BaseKey[] = [];
 
+  /** One shared cap at the origin, on as many Switches as its size needs (or as the owner forced). */
+  const shared = (outline: CrossSection, spec: Omit<CapSpec, "outline" | "at" | "switches">) => {
+    const foot = baseFootprint([{ at: [0, 0], outline }], base, fit);
+    const placed = placeSwitches(outline, foot, fit, base, cap.switches);
+    warnings.push(...placed.warnings);
+    caps.push({ ...spec, outline, at: [0, 0], switches: placed.at });
+    baseKeys = [{ at: [0, 0], outline, switches: placed.at }];
+  };
+
   if (design.kind === "picture") {
     const ps = pictureSpec(design, assets);
     if (!ps) warnings.push("warn.noPicture");
     const outline = ps?.outline ?? capOutline("circle", 30, 0);
     const deco = ps?.deco ?? [];
     // The border already surrounds the picture, so the inset only trims what the outward offset smoothed.
-    caps.push({ key: design.keys[0], outline, at: [0, 0], deco, label: "Top Cap", inset: cap.border });
+    shared(outline, { key: design.keys[0], deco, label: "Top Cap", inset: cap.border });
     if (cap.border > 0 && cap.border < THIN_BORDER) warnings.push("warn.thinBorder");
-    baseKeys = [{ at: [0, 0], outline }];
   } else if (design.kind === "model") {
     const ms = modelSpec(design, warnings);
     const outline = ms?.outline ?? capOutline("circle", 26, 0);
-    caps.push({ key: design.keys[0], outline, at: [0, 0], deco: [], label: "Top Cap", extra: ms?.model });
-    baseKeys = [{ at: [0, 0], outline }];
+    shared(outline, { key: design.keys[0], deco: [], label: "Top Cap", extra: ms?.model });
+  } else if (design.kind === "cap") {
+    const outline = centredOnSwitch(capOutline(cap.shape, cap.size, cap.corner));
+    const key = design.keys[0];
+    shared(outline, { key, deco: await keyDeco(key, outline, design, assets), label: "Top Cap" });
   } else if (design.parts === "az-set") {
     const outline = centredOnSwitch(capOutline(cap.shape, cap.size, cap.corner));
     const proto = design.keys[0];
@@ -124,15 +138,15 @@ export async function build(design: Design, assets: Assets): Promise<BuildResult
       caps.push({ key, outline, at: [0, 0], deco: await keyDeco(key, outline, design, assets), label: `Keycap ${letter}` });
     }
   } else {
+    // Row, grid and fluted: one Switch under each key.
     const outline = centredOnSwitch(capOutline(cap.shape, cap.size, cap.corner));
-    const keys = design.kind === "cap" ? design.keys.slice(0, 1) : design.keys;
+    const keys = design.keys;
     const b = outline.bounds();
     const unit: [number, number] =
       design.kind === "fluted"
         ? [chainPitch(outline, design), 0]
         : [b.max[0] - b.min[0] + 2 * fit.clearance + base.gap, b.max[1] - b.min[1] + 2 * fit.clearance + base.gap];
-    const cells: [number, number][] =
-      design.kind === "cap" ? [[0, 0]] : design.kind === "fluted" ? keys.map((_, i) => [i, 0]) : keyCells(design, keys.length);
+    const cells: [number, number][] = design.kind === "fluted" ? keys.map((_, i) => [i, 0]) : keyCells(design, keys.length);
     // Centre the layout.
     const xs = cells.map((c) => c[0]), ys = cells.map((c) => c[1]);
     const mx = (Math.min(...xs) + Math.max(...xs)) / 2, my = (Math.min(...ys) + Math.max(...ys)) / 2;
@@ -152,7 +166,7 @@ export async function build(design: Design, assets: Assets): Promise<BuildResult
   const patches: PatchInfo[] = [];
   if (wantCaps) {
     for (const [i, c] of caps.entries()) {
-      const g = buildCap(c.outline, design.kind === "model" ? { ...cap, style: "raised" } : cap, fit, c.key.capColor, c.deco, keyRings(c.key, c.deco, design), c.label, undefined, c.inset);
+      const g = buildCap(c.outline, design.kind === "model" ? { ...cap, style: "raised" } : cap, fit, c.key.capColor, c.deco, keyRings(c.key, c.deco, design), c.label, undefined, c.inset, c.switches);
       // A 3D model stands on the cap top, fused into the cap.
       if (c.extra) g.solids[0].m = g.solids[0].m.add(c.extra.translate([0, 0, g.top - 0.2]));
       for (const s of g.solids) assembled.push(part(s, c.at));
@@ -182,16 +196,25 @@ export async function build(design: Design, assets: Assets): Promise<BuildResult
   const foot = baseKeys.length ? baseFootprint(baseKeys, base, fit) : null;
   if (foot && wantBase && design.kind !== "fluted") {
     const inner = foot.offset(-1, "Round");
-    const room = K().CrossSection.union(baseKeys.map((k) => K().CrossSection.square([fit.clipRoom, fit.clipRoom], true).translate(k.at)));
+    const room = K().CrossSection.union(baseKeys.flatMap(keySwitches).map((s) => K().CrossSection.square([fit.clipRoom, fit.clipRoom], true).translate(s)));
     if (room.subtract(inner).area() > 0.01) warnings.push("warn.pocket");
   }
   const loops = foot && wantBase && design.kind !== "fluted" ? loopCentres(foot, base.loop, base.loopHole / 2) : [];
   if (patches.some((p) => p.h > TALL)) warnings.push("warn.tall");
   if (caps.length && wantCaps && wantBase && design.kind !== "model") {
     const rimTop = baseLevels(base, fit).wallTop;
-    if (caps.some((c) => skirtExposed(c.outline, fit, rimTop))) warnings.push("warn.smallCap");
+    if (caps.some((c) => (c.switches ?? [[0, 0]]).some((s) => skirtExposed(c.outline, fit, rimTop, s)))) warnings.push("warn.smallCap");
   }
-  return { assembled, print, warnings, switches: wantBase || design.parts === "cap+base" ? baseKeys.map((k) => k.at) : [], loops, bottom: baseLevels(base, fit).bottom, patches };
+  return {
+    assembled,
+    print,
+    warnings,
+    switches: wantBase || design.parts === "cap+base" ? baseKeys.flatMap(keySwitches) : [],
+    switchesPerCap: caps[0]?.switches?.length ?? 1,
+    loops,
+    bottom: baseLevels(base, fit).bottom,
+    patches,
+  };
 }
 
 /** A cap's raised picture patches, as the preview picks them (footprints not clipped to the flat top: close enough to click). */

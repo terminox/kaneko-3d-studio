@@ -54,9 +54,9 @@ export function keepOut(fit: Fit): Manifold {
   return K().Manifold.hull([env, env.translate([0, 0, fit.travel])]);
 }
 
-/** True when clearing the housing would cut through the cap wall above `rimTop` (plate frame). */
-export function skirtExposed(outline: CrossSection, fit: Fit, rimTop: number): boolean {
-  const s = keepOut(fit).slice(rimTop);
+/** True when clearing the housing at `at` would cut through the cap wall above `rimTop` (plate frame). */
+export function skirtExposed(outline: CrossSection, fit: Fit, rimTop: number, at: [number, number] = [0, 0]): boolean {
+  const s = keepOut(fit).slice(rimTop).translate(at);
   return s.subtract(offset(outline, -0.6)).area() > 0.01;
 }
 
@@ -92,9 +92,10 @@ export type CapGeometry = {
 };
 
 /**
- * One cap over one Switch. `deco` layers must already be fitted and centred
- * (cap-local x/y). `rings` are outline rings around them, inner first.
- * `inset` is how far Decorations stay in from the outline.
+ * One cap over one or more Switches. `deco` layers must already be fitted and
+ * centred (cap-local x/y). `rings` are outline rings around them, inner first.
+ * `inset` is how far Decorations stay in from the outline. `switches` are the
+ * stem centres; the first gets the tight socket, the others `extraStemFit`.
  */
 export function buildCap(
   outline: CrossSection,
@@ -106,6 +107,7 @@ export function buildCap(
   label: string,
   tapered = opts.shape === "keycap",
   inset = opts.topRound + 0.4,
+  switches: [number, number][] = [[0, 0]],
 ): CapGeometry {
   const { Manifold, CrossSection } = K();
   const { skirtBottom, ceiling, bossBottom } = capHeights(fit);
@@ -120,14 +122,20 @@ export function buildCap(
     body = taper(body, z0, z1, topScale);
     cavity = taper(cavity, z0, z1, topScale);
   }
-  // Stem boss with the cross socket.
-  const boss = Manifold.cylinder(ceiling - bossBottom + 0.4, fit.boss / 2, fit.boss / 2, 48).translate([0, 0, bossBottom]);
-  const L = fit.crossLength + 2 * fit.stemFit;
-  const W = fit.crossWidth + 2 * fit.stemFit;
-  const cross = CrossSection.square([L, W], true).add(CrossSection.square([W, L], true));
-  const socket = slab(cross, bossBottom - 1, ceiling - 0.001);
-  // Everything except the boss must clear the housing over the whole travel.
-  let cap = body.subtract(cavity).subtract(keepOut(fit)).add(boss.subtract(socket));
+  // A stem boss with its cross socket over every Switch. Everything except the
+  // bosses must clear every housing over the whole travel.
+  const bosses: Manifold[] = [], keepOuts: Manifold[] = [];
+  switches.forEach((s, i) => {
+    const sf = fit.stemFit + (i > 0 ? fit.extraStemFit : 0);
+    const L = fit.crossLength + 2 * sf;
+    const W = fit.crossWidth + 2 * sf;
+    const cross = CrossSection.square([L, W], true).add(CrossSection.square([W, L], true));
+    const socket = slab(cross, bossBottom - 1, ceiling - 0.001);
+    const boss = Manifold.cylinder(ceiling - bossBottom + 0.4, fit.boss / 2, fit.boss / 2, 48).translate([0, 0, bossBottom]);
+    bosses.push(boss.subtract(socket).translate([s[0], s[1], 0]));
+    keepOuts.push(keepOut(fit).translate([s[0], s[1], 0]));
+  });
+  let cap = body.subtract(cavity).subtract(Manifold.union(keepOuts)).add(Manifold.union(bosses));
 
   // Top area Decorations stay inside.
   const flatScale = topScale;

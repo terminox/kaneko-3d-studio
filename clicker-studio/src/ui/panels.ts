@@ -666,9 +666,32 @@ function pictureCard(): HTMLElement {
         },
       ),
     ),
-    h("p", { class: "muted", text: t("picture.switchNote") }),
   );
   return card;
+}
+
+/* ---------- Switches under a shared cap ---------- */
+
+/** How many Switches the shared cap sits on, and (Advanced) a way to force the count. */
+export function switchesCard(): HTMLElement | null {
+  const k = d().kind;
+  if (k !== "cap" && k !== "picture" && k !== "model") return null;
+  const n = state.build?.switchesPerCap ?? d().placedSwitches ?? 1;
+  const note = h("p", { class: "muted", text: n === 1 ? t("switch.one") : t("switch.many").replace("{n}", String(n)) });
+  if (!adv()) return h("section", { class: "card slim" }, note);
+  const options = [{ value: "0", label: t("switch.auto") }, ...[1, 2, 3, 4].map((v) => ({ value: String(v), label: String(v) }))];
+  return section(
+    "card.switches",
+    field(
+      t("switch.count"),
+      segmented(options, String(d().cap.switches), (v) => {
+        d().cap.switches = Number(v) as Design["cap"]["switches"];
+        changed();
+      }),
+      t("switch.hint"),
+    ),
+    note,
+  );
 }
 
 /* ---------- Layer heights ---------- */
@@ -1127,6 +1150,9 @@ const FIT_FIELDS: { key: keyof Fit; min: number; max: number; step: number }[] =
   { key: "housingBottom", min: 14, max: 16.5, step: 0.1 },
   { key: "housingTop", min: 9, max: 14, step: 0.1 },
   { key: "housingHeight", min: 5, max: 8, step: 0.1 },
+  { key: "reach", min: 15, max: 30, step: 0.5 },
+  { key: "pitch", min: 16, max: 24, step: 0.05 },
+  { key: "extraStemFit", min: 0, max: 0.3, step: 0.01 },
 ];
 
 export function fitCard(): HTMLElement | null {

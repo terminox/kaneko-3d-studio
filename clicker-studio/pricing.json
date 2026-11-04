@@ -1,5 +1,5 @@
 {
-  "_comment": "PLACEHOLDER PRICES. Replace with your own. price = kind base + extra keys beyond 'includedKeys' x perExtraKey + extras.",
+  "_comment": "PLACEHOLDER PRICES. Replace with your own. price = kind base + extra keys beyond 'includedKeys' x perExtraKey + extra switches under a shared cap x perExtraSwitch + extras.",
   "currency": "฿",
   "kinds": {
     "cap": { "base": 39, "includedKeys": 1, "perExtraKey": 0 },
@@ -18,6 +18,7 @@
     "cord": 10,
     "aiCartoon": 0,
     "texture": 0,
-    "perColourBeyond4": 10
+    "perColourBeyond4": 10,
+    "perExtraSwitch": 0
   }
 }

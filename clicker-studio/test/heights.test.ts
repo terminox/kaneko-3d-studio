@@ -126,6 +126,7 @@ describe("raised heights on the cap", () => {
 
   test("a picture Design with heights reports its patches and warns above 4 mm", async () => {
     const design: Design = newDesign("picture");
+    design.cap.switches = 1; // a 40 mm square would take four; these tests are about heights
     design.cap.style = "raised";
     design.picture = {
       image: "p",
@@ -214,6 +215,7 @@ describe("picture border", () => {
 
   test("a picture Design's border grows the cap and Base outward; the picture keeps its width", async () => {
     const design: Design = newDesign("picture");
+    design.cap.switches = 1; // a 40 mm square would take four; these tests are about heights
     design.cap.style = "raised";
     design.picture = {
       image: "p",

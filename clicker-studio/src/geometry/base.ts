@@ -7,7 +7,13 @@ import { capHeights, type Fit } from "./switch.ts";
 import { slab } from "./cap.ts";
 import { applyTexture } from "./texture.ts";
 
-export type BaseKey = { at: [number, number]; outline: CrossSection };
+/** One cap on the Base: its outline at `at`, and its Switch centres relative to `at` (default one, at the cap origin). */
+export type BaseKey = { at: [number, number]; outline: CrossSection; switches?: [number, number][] };
+
+/** Every Switch centre of a key, in the plate frame. */
+export function keySwitches(k: BaseKey): [number, number][] {
+  return (k.switches ?? [[0, 0]]).map((s) => [k.at[0] + s[0], k.at[1] + s[1]]);
+}
 
 export function baseLevels(opts: BaseOptions, fit: Fit) {
   const bottom = -(fit.plate + fit.under + opts.floor);
@@ -53,7 +59,7 @@ function edgeY(cs: CrossSection, x: number): number {
   return cs.intersect(probe).bounds().max[1];
 }
 
-/** A Base with one Switch Pocket per key. */
+/** A Base with a skirt room per key and a Switch Pocket per Switch. */
 export function buildBase(keys: BaseKey[], opts: BaseOptions, fit: Fit, footprint?: CrossSection): Manifold {
   const { CrossSection, Manifold } = K();
   const { bottom, wallTop } = baseLevels(opts, fit);
@@ -70,10 +76,12 @@ export function buildBase(keys: BaseKey[], opts: BaseOptions, fit: Fit, footprin
   for (const k of keys) {
     // Room above the plate for the cap skirt.
     cuts.push(slab(offset(k.outline, fit.clearance).translate(k.at), 0, wallTop + 1));
-    // Clip room under the plate for the bottom housing and pins.
-    cuts.push(slab(CrossSection.square([fit.clipRoom, fit.clipRoom], true).translate(k.at), bottom + opts.floor, -fit.plate));
-    // The plate cutout.
-    cuts.push(slab(CrossSection.square([fit.pocket, fit.pocket], true).translate(k.at), -fit.plate - 0.5, 0.5));
+    for (const s of keySwitches(k)) {
+      // Clip room under the plate for the bottom housing and pins.
+      cuts.push(slab(CrossSection.square([fit.clipRoom, fit.clipRoom], true).translate(s), bottom + opts.floor, -fit.plate));
+      // The plate cutout.
+      cuts.push(slab(CrossSection.square([fit.pocket, fit.pocket], true).translate(s), -fit.plate - 0.5, 0.5));
+    }
   }
   for (const c of loops) cuts.push(slab(circle(holeR, c), bottom - 1, wallTop + 1));
   return body.subtract(Manifold.union(cuts));

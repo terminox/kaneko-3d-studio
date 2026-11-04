@@ -31,6 +31,13 @@ export type Fit = {
   housingHeight: number;
   /** Gap between cap and base walls, on every side. */
   clearance: number;
+  /** Farthest any point of a shared cap may be from its nearest switch. Beyond it, more
+   *  switches are added (the keyboard "2u" rule: a 38 × 19 cap's corner is 21.3 mm out). */
+  reach: number;
+  /** Smallest centre-to-centre distance between switches under one cap (clip rooms plus a plate web). */
+  pitch: number;
+  /** Extra stem fit on every socket but the first, so a cap on several switches never binds. */
+  extraStemFit: number;
 };
 
 export const DEFAULT_FIT: Fit = {
@@ -50,6 +57,9 @@ export const DEFAULT_FIT: Fit = {
   housingTop: 11.6,
   housingHeight: 6.6,
   clearance: 0.8,
+  reach: 22,
+  pitch: 18,
+  extraStemFit: 0.1,
 };
 
 /** Heights relative to the plate top, at rest. */
