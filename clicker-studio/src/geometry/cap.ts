@@ -5,6 +5,7 @@ import { K, type CrossSection, type Manifold } from "./kernel.ts";
 import { offset } from "./outline.ts";
 import { capHeights, minCapHeight, type Fit } from "./switch.ts";
 import type { Layer } from "./decoration.ts";
+import { mergeAreas } from "./patches.ts";
 import { FLUSH_DEPTH } from "../design/heights.ts";
 
 export type Solid = { name: string; color: string; m: Manifold };
@@ -61,24 +62,23 @@ export function skirtExposed(outline: CrossSection, fit: Fit, rimTop: number, at
 }
 
 /**
- * Layers -> printed parts: the patches of one traced colour make one part
- * (other layers are one part each). Areas at the same height are merged and
+ * Layers -> printed parts: the patches of one filament make one part (other
+ * layers are one part each). Areas at the same height are merged and
  * clipped together, so a flat picture costs one extrusion per colour.
  */
 function partsOf(layers: Layer[], heightOf: (l: Layer) => number, clip: (cs: CrossSection) => CrossSection) {
-  const { CrossSection } = K();
-  const groups = new Map<string, { color: string; byH: Map<number, CrossSection[]> }>();
+  const groups = new Map<string, { color: string; byH: Map<number, Layer[]> }>();
   layers.forEach((l, i) => {
-    const key = l.patch ? `p${l.patch.layer}` : `d${i}`;
+    const key = l.patch ? `p${l.color.toUpperCase()}` : `d${i}`;
     const g = groups.get(key) ?? { color: l.color, byH: new Map() };
     const lh = heightOf(l);
-    g.byH.set(lh, [...(g.byH.get(lh) ?? []), l.cs]);
+    g.byH.set(lh, [...(g.byH.get(lh) ?? []), l]);
     groups.set(key, g);
   });
   return [...groups.values()]
     .map((g) => ({
       color: g.color,
-      levels: [...g.byH].map(([h, css]) => ({ h, cs: clip(css.length > 1 ? CrossSection.union(css) : css[0]) })).filter((l) => !l.cs.isEmpty()),
+      levels: [...g.byH].map(([h, ls]) => ({ h, cs: clip(mergeAreas(ls)) })).filter((l) => !l.cs.isEmpty()),
     }))
     .filter((g) => g.levels.length);
 }

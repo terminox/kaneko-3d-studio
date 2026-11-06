@@ -1,6 +1,7 @@
 // Price of a Design from pricing.json.
 import pricing from "../../pricing.json";
 import type { Design } from "./types.ts";
+import { paintColours } from "./heights.ts";
 
 export const CURRENCY = pricing.currency;
 
@@ -49,8 +50,9 @@ export function designColours(d: Design): string[] {
       out.push(k.capColor);
       if (d.kind !== "picture" && k.deco.type !== "none") out.push(k.decoColor);
       for (let i = 0; i < k.outline; i++) out.push(k.outlineColors[i]);
+      if (k.deco.type === "image") out.push(...paintColours(k.deco.heights));
     }
-    if (d.kind === "picture" && d.picture) out.push(...d.picture.palette.slice(0, d.picture.colors));
+    if (d.kind === "picture" && d.picture) out.push(...d.picture.palette.slice(0, d.picture.colors).filter((_, i) => !d.picture?.emptied?.includes(i)), ...paintColours(d.picture.heights));
   }
   if (d.parts === "cap+base" || d.parts === "base") {
     if (d.kind === "fluted") out.push(...keys.map((k) => k.baseColor ?? d.baseColor));

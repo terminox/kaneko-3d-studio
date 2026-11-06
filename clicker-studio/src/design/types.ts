@@ -29,11 +29,15 @@ export type PartsMode = "cap+base" | "caps" | "base" | "az-set";
 /** A patch's own height (mm), remembered by a spot on the traced picture (0–1, y down) so it survives a retrace. */
 export type Pin = { at: [number, number]; h: number };
 
+/** A patch's own filament, remembered by a spot on the traced picture like a Pin. */
+export type Paint = { at: [number, number]; color: string };
+
 /**
- * Heights of a picture's raised patches. A patch takes the last pin inside it,
- * else its colour's height, else the default (the Decoration height).
+ * A picture's per-patch settings. A patch's height comes from the last pin
+ * inside it, else its colour's height, else the default (the Decoration
+ * height). Its filament comes from the last paint inside it, else its colour.
  */
-export type LayerHeights = { colour: (number | null)[]; pins: Pin[] };
+export type LayerHeights = { colour: (number | null)[]; pins: Pin[]; paints?: Paint[] };
 
 /** What sits on top of a Top Cap or Keycap. */
 export type Decoration =
@@ -107,8 +111,10 @@ export type PictureOptions = {
   width: number;
   /** Use the AI cartoon version of the image when present. */
   useCartoon: boolean;
-  /** Raised style: per-colour and per-patch heights. */
+  /** Per-colour heights, and per-patch heights and filaments. */
   heights?: LayerHeights;
+  /** Traced colours with every patch repainted, so their filament isn't used. Derived; the price and order sheet read it. */
+  emptied?: number[];
 };
 
 export type ModelOptions = {

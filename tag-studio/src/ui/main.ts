@@ -3,11 +3,13 @@ import "./style.css";
 import { newTagDesign, tagNames, upgradeTag, type TagDesign } from "../design/types.ts";
 import { t, tr, setLang } from "../i18n/strings.ts";
 import { button, download, h, pickFile, segmented } from "./dom.ts";
-import { rerender, selectedPatches, selectionChanged, state, subscribe } from "./state.ts";
-import { patchAt, samePt } from "@cs/design/heights.ts";
+import { changed, rerender, selectedPatches, selectionChanged, state, subscribe } from "./state.ts";
+import { emptyHeights, patchAt, resetPatchColours, samePt, setPatchColours } from "@cs/design/heights.ts";
+import { FILAMENTS, filamentName } from "@cs/design/palette.ts";
+import { renderColourBar } from "@cs/ui/colour-bar.ts";
 import { Viewport } from "./viewport.ts";
 import { onBuilt, requestBuild, requestExport } from "./engine.ts";
-import { colourCard, designNameCard, loadFonts, loopCard, nameCard, pictureCard, plateCard, ringsCard, type FontInfo } from "./panels.ts";
+import { colourCard, designColours, designNameCard, loadFonts, loopCard, nameCard, pictureCard, plateCard, ringsCard, type FontInfo } from "./panels.ts";
 import { cartoonAvailable, retracePicture } from "./picture-ui.ts";
 
 const app = document.getElementById("app")!;
@@ -17,7 +19,8 @@ const dims = h("div", { class: "dims" });
 const status = h("div", { class: "status", attrs: { role: "status" } });
 const notes = h("div", { class: "notes" });
 const stageTools = h("div", { class: "stage-tools" });
-const stage = h("section", { class: "stage" }, host, h("div", { class: "stage-top" }, stageTools, dims), notes, status, h("div", { class: "stage-hint" }));
+const colourBarHost = h("div", { class: "colour-bar", attrs: { hidden: true } });
+const stage = h("section", { class: "stage" }, host, h("div", { class: "stage-top" }, stageTools, dims), notes, status, h("div", { class: "stage-hint" }), colourBarHost);
 const header = h("header", { class: "bar" });
 app.append(header, h("main", { class: "layout" }, left, stage));
 
@@ -146,19 +149,53 @@ function showModel(frame = false) {
   else dims.textContent = s ? `${s.x.toFixed(0)} × ${s.y.toFixed(0)} × ${s.z.toFixed(1)} mm` : "";
 }
 
-/** Identifies a build's patches and which have their own height (not the heights themselves). */
-const patchKey = (b: typeof state.build) => (b?.patches ?? []).map((p) => `${p.at}${p.own ? "*" : ""}`).join("|");
+/** Identifies a build's patches, which have their own height (not the heights themselves) and their colours. */
+const patchKey = (b: typeof state.build) => (b?.patches ?? []).map((p) => `${p.at}${p.own ? "*" : ""}:${p.color}`).join("|");
 /** True while a panel input has focus: re-rendering then would cut a drag short. */
 const editing = () => document.activeElement instanceof HTMLInputElement && left.contains(document.activeElement);
 
+/** A tap acts like Shift-click: tablets have no Shift key. Ends when nothing is picked. */
+let pickSeveral = false;
+
 function paintHighlight() {
-  viewport.highlight(state.build && !state.build.plateView ? selectedPatches() : []);
+  const sel = state.build && !state.build.plateView ? selectedPatches() : [];
+  viewport.highlight(sel);
+  if (!sel.length) pickSeveral = false;
+  stage.classList.toggle("picking", sel.length > 0);
+  const hs = () => (state.design.picture.heights ??= emptyHeights());
+  renderColourBar(colourBarHost, sel.length
+    ? {
+        patches: sel,
+        filaments: FILAMENTS.map((f) => ({ hex: f.hex, name: f[state.lang] })),
+        colourName: (hex) => filamentName(hex, state.lang),
+        several: pickSeveral,
+        note: designColours(state.design).length > 4 ? t("colour.over4") : undefined,
+        labels: { selected: t("heights.selected"), several: t("parts.several"), reset: t("parts.resetColour"), deselect: t("heights.deselect") },
+        onColour: (hex) => {
+          setPatchColours(hs(), selectedPatches(), hex);
+          changed();
+        },
+        onSeveral: () => {
+          pickSeveral = !pickSeveral;
+          paintHighlight();
+        },
+        onReset: () => {
+          resetPatchColours(hs(), selectedPatches());
+          changed();
+        },
+        onDeselect: () => {
+          state.selected = [];
+          selectionChanged();
+        },
+      }
+    : null);
 }
 
-// Click a picture patch to pick it; Shift-click adds or removes; a click elsewhere clears.
-viewport.onPick = (hit, shift) => {
+// Click a picture patch to pick it; Shift-click (or Pick several) adds or removes; a click elsewhere clears.
+viewport.onPick = (hit, shiftKey) => {
   const patches = state.build?.plateView ? [] : (state.build?.patches ?? []);
   if (!patches.length) return;
+  const shift = shiftKey || pickSeveral;
   const p = hit ? patchAt(patches, hit) : null;
   if (!p) {
     if (shift || !state.selected.length) return;

@@ -37,6 +37,10 @@ A big cap on one switch binds when pressed off-centre and lets its far edge droo
 
 In the Raised style, a picture (the Picture kind, or a picture on a key) can stand in layers ([ADR 0007](../docs/adr/0007-per-patch-layer-heights.md)). Each traced colour gets a height slider (0–8 mm; 0 is flush). Click a patch in the 3D preview to give that patch its own height, and Shift-click to pick several. **Make it pop** raises what sits inside other patches (pupils on eyes, eyes on the face). **Flatten** resets everything. Above 4 mm the slider turns amber and a warning shows. Heights stay with their spot on the picture through a retrace or a re-crop.
 
+## Part colours
+
+A picture's patches can each have their own filament, in Raised and Inlay ([ADR 0010](../docs/adr/0010-per-patch-colours.md)). Click or tap a patch in the 3D preview and a colour bar opens over it. Choose a filament and only that patch changes. Use Shift-click or **Pick several** to pick more, and **Reset colour** to go back to the patch's colour. Colours stay with their spot on the picture through a retrace or a re-crop. On an iPad the bar stays over the preview and its swatches swipe sideways.
+
 ## Your settings files
 
 - `filaments.json`: the filament colours you stock (hex plus Thai and English names). Swatches, colour pairs and the order sheet use it.
@@ -66,14 +70,14 @@ bun scripts/min-sizes.ts              # smallest warning-free cap size per shape
 ## Layout
 
 ```
-src/design/     types.ts (Design), palette.ts, price.ts, order.ts, heights.ts (layer height edits, picking)
+src/design/     types.ts (Design), palette.ts, price.ts, order.ts, heights.ts (layer height and part colour edits, picking)
 src/geometry/   kernel, switch (Fit), switches (where the switches go under a shared cap), outline,
                 cap, base, texture, layout, chain, model-cap, decoration, patches (picture islands
                 + heights), symbols, path (SVG paths), build.ts (Design → parts, plate packing)
 src/text/       shape.ts: HarfBuzz text shaping with per-character font fallback
 src/picture/    process.ts: background removal, holes, Lab k-means colour split, tracing
 src/export/     bambu.ts (→ Model Maker's 3MF writer), template.ts
-src/ui/         main, panels, picture-ui (crop dialog, AI), order-ui (order sheet), viewport, state
+src/ui/         main, panels, colour-bar (part colours), picture-ui (crop dialog, AI), order-ui (order sheet), viewport, state
 src/i18n/       strings.ts: every Thai and English string
 scripts/        fetch-assets, make, check-kinds, min-sizes, cartoon (OpenRouter call), cartoon-api (dev-server endpoint)
 ```

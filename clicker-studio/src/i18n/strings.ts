@@ -219,7 +219,9 @@ const S = {
   "picture.capWidth": ["ฝากว้าง {w} มม. (รูป + ขอบสองข้าง) ฐานขยายตาม", "Cap {w} mm wide (picture + border both sides); the Base grows with it"],
   "heights.title": ["ความสูงแต่ละชั้น", "Layer heights"],
   "heights.hint": ["แต่ละสีสูงไม่เท่ากันได้ · 0 = ฝังเรียบ · เกิน 4 มม. ส่วนที่บางอาจหัก", "Each colour can stand at its own height · 0 = flush · above 4 mm, thin parts can snap"],
-  "heights.pickHint": ["คลิกชิ้นในภาพ 3D เพื่อยกสูงเฉพาะชิ้นนั้น · Shift+คลิก เลือกหลายชิ้น", "Click a patch in the 3D preview to raise it on its own · Shift-click to pick more"],
+  "heights.pickHint": ["คลิกหรือแตะชิ้นในภาพ 3D เพื่อตั้งความสูงหรือสีเฉพาะชิ้นนั้น · Shift+คลิก หรือปุ่ม “เลือกหลายชิ้น” เพื่อเลือกเพิ่ม", "Click or tap a patch in the 3D preview to give it its own height or colour · Shift-click or Pick several to pick more"],
+  "parts.several": ["เลือกหลายชิ้น", "Pick several"],
+  "parts.resetColour": ["กลับเป็นสีเดิม", "Reset colour"],
   "heights.selected": ["ชิ้นที่เลือก", "Selected patches"],
   "heights.resetSel": ["กลับไปใช้ความสูงของสี", "Reset to colour"],
   "heights.deselect": ["ยกเลิกการเลือก", "Deselect"],
@@ -264,6 +266,7 @@ const S = {
   "view.section": ["ผ่าดูข้างใน", "Cut-away"],
   "view.reset": ["มุมมองเริ่มต้น", "Reset view"],
   "view.hint": ["ลากเมาส์ = หมุน · สกอลล์ = ซูม · ตัวอย่างแสดงแบบประกอบแล้ว", "Drag to rotate · scroll to zoom · showing the assembled Clicker"],
+  "view.pickHint": ["แตะชิ้นในรูปเพื่อเปลี่ยนสี", "Tap a picture patch to change its colour"],
   "view.printHint": ["ตัวอย่างแสดงแบบแยกชิ้น ตามไฟล์ที่พิมพ์จริง", "Showing the parts as they lie on the print bed"],
 
   "warn.noPicture": ["ยังไม่มีรูป: อัปรูปเพื่อทำทรงฝา", "No picture yet: upload one to shape the cap."],

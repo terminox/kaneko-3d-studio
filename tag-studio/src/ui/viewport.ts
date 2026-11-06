@@ -16,7 +16,7 @@ export class Viewport {
   /** Highlights over picked patches. */
   private marks = new THREE.Group();
   // Drawn just above each top, depth-tested so taller patches in front hide them.
-  private markFill = new THREE.MeshBasicMaterial({ color: 0x7c4dff, transparent: true, opacity: 0.6, depthWrite: false, side: THREE.DoubleSide });
+  private markFill = new THREE.MeshBasicMaterial({ color: 0x7c4dff, transparent: true, opacity: 0.2, depthWrite: false, side: THREE.DoubleSide });
   private markLine = new THREE.LineBasicMaterial({ color: 0xffffff, depthWrite: false });
   private raycaster = new THREE.Raycaster();
   private grid: THREE.Group;
@@ -48,19 +48,22 @@ export class Viewport {
 
     // A click picks; a drag orbits.
     const el = this.renderer.domElement;
+    // A finger wobbles more than a mouse, and a second finger means a pinch, not a tap.
     let down: { x: number; y: number } | null = null;
-    el.addEventListener("pointerdown", (e) => (down = e.button === 0 ? { x: e.clientX, y: e.clientY } : null));
+    el.addEventListener("pointerdown", (e) => (down = e.button === 0 && e.isPrimary ? { x: e.clientX, y: e.clientY } : null));
+    el.addEventListener("pointercancel", () => (down = null));
     el.addEventListener("pointerup", (e) => {
-      if (!down || !this.onPick || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4) return;
+      const tap = down;
       down = null;
+      if (!tap || !this.onPick || Math.hypot(e.clientX - tap.x, e.clientY - tap.y) > (e.pointerType === "mouse" ? 4 : 10)) return;
       this.onPick(this.hit(e), e.shiftKey);
     });
 
     new ResizeObserver(() => this.resize()).observe(host);
     this.resize();
     this.renderer.setAnimationLoop((ms) => {
-      // Picked patches pulse gently, so they show on any colour.
-      if (this.marks.children.length) this.markFill.opacity = 0.45 + 0.25 * Math.sin(ms / 220);
+      // Picked patches pulse gently, faint enough to show the colour being chosen.
+      if (this.marks.children.length) this.markFill.opacity = 0.14 + 0.1 * Math.sin(ms / 220);
       this.controls.update();
       this.renderer.render(this.scene, this.camera);
     });

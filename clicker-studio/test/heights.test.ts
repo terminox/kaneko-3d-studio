@@ -1,13 +1,14 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { K, loadKernel, type Manifold } from "../src/geometry/kernel.ts";
-import { tracedPatches } from "../src/geometry/patches.ts";
+import { mergeAreas, tracedPatches } from "../src/geometry/patches.ts";
 import type { Traced } from "../src/geometry/decoration.ts";
 import { buildCap } from "../src/geometry/cap.ts";
 import { capOutline } from "../src/geometry/outline.ts";
 import { DEFAULT_FIT } from "../src/geometry/switch.ts";
 import { build } from "../src/geometry/build.ts";
 import { newDesign, type Design, type LayerHeights } from "../src/design/types.ts";
-import { FLUSH_DEPTH, emptyHeights, makeItPop, patchAt, remapPins, resetPatches, setColourHeight, setPatchHeights } from "../src/design/heights.ts";
+import { FLUSH_DEPTH, emptiedLayers, emptyHeights, flatten, samePt, makeItPop, patchAt, remapHeights, remapPins, resetPatchColours, resetPatches, setColourHeight, setPatchColours, setPatchHeights } from "../src/design/heights.ts";
+import { designColours } from "../src/design/price.ts";
 import { assets } from "./helpers.ts";
 
 beforeAll(async () => {
@@ -104,7 +105,7 @@ describe("raised heights on the cap", () => {
     const design = newDesign("cap");
     const outline = capOutline("square", 24, 2);
     const sqCs = (x: number, y: number, w: number) => K().CrossSection.square([w, w]).translate([x, y]);
-    const ref = (layer: number, x: number) => ({ layer, at: [x, 0] as [number, number], pins: [], depth: 0 });
+    const ref = (layer: number, x: number) => ({ layer, at: [x, 0] as [number, number], pins: [], paints: [], depth: 0 });
     const deco = [
       { cs: sqCs(-8, -2, 4), color: "#F7D046", h: 0.8, patch: ref(0, 0) },
       { cs: sqCs(-2, -2, 4), color: "#1E1E1E", h: 3, patch: ref(1, 1) },
@@ -157,10 +158,11 @@ describe("raised heights on the cap", () => {
     const tall = await build(design, { ...assets, traced });
     expect(tall.warnings).toContain("warn.tall");
     expect(Math.max(...tall.patches.map((p) => p.h))).toBe(6);
-    // Inlay ignores heights and reports no patches.
+    // Inlay ignores heights but still reports patches, flush, for colouring.
     design.cap.style = "inlay";
     const inlay = await build(design, { ...assets, traced });
-    expect(inlay.patches).toEqual([]);
+    expect(inlay.patches.length).toBe(tall.patches.length);
+    expect(inlay.patches.every((p) => p.h === 0 && !p.own)).toBe(true);
     expect(inlay.warnings).not.toContain("warn.tall");
   });
 
@@ -172,6 +174,155 @@ describe("raised heights on the cap", () => {
     expect(new Set(r.patches.map((p) => p.owner))).toEqual(new Set([0, 1]));
     // Still one part per traced colour per key: cap + 3 colours, twice, plus the Base.
     expect(r.print.flatMap((g) => g.parts).length).toBe(2 * 4 + 1);
+  });
+});
+
+describe("part colours", () => {
+  const RED = "#D32F2F", BLUE = "#2F5FB3";
+  const eyes = (hs?: LayerHeights) => tracedPatches(picture(), hs).filter((p) => p.layer === 1);
+
+  /** A Picture Design of `picture()`, with its traced colours as the palette. */
+  function pictureDesign(style: "raised" | "inlay") {
+    const design = newDesign("picture");
+    design.cap.style = style;
+    const traced = { p: picture() };
+    design.picture = { image: "p", crop: { x: 0, y: 0, w: 1, h: 1, rotate: 0 }, adjust: { brightness: 0, contrast: 0, saturation: 0 }, removeBackground: false, bgStrength: 0, punchHoles: false, colors: 3, palette: traced.p.layers.map((l) => l.color), width: 40, useCartoon: false, heights: emptyHeights() };
+    return { design, assets: { ...assets, traced } };
+  }
+
+  test("a paint colours only the patch under it; the last paint wins", () => {
+    const hs = emptyHeights();
+    const [left, right] = eyes();
+    setPatchColours(hs, [left], RED);
+    const painted = eyes(hs);
+    expect(painted[0].color).toBe(RED);
+    expect(painted[1].color).toBeUndefined();
+    expect(painted[0].paints.length).toBe(1);
+    hs.paints!.push({ at: [left.at[0], left.at[1]], color: BLUE });
+    expect(eyes(hs)[0].color).toBe(BLUE);
+    expect(right.color).toBeUndefined();
+  });
+
+  test("setting replaces, reset removes, and a stale paint on the patch goes with them", () => {
+    const hs = emptyHeights();
+    const [left, right] = eyes();
+    setPatchColours(hs, [left, right], RED);
+    setPatchColours(hs, [left], BLUE);
+    expect(hs.paints!.length).toBe(2);
+    // A retrace can leave a paint off the patch's own point.
+    const near: [number, number] = [left.at[0] + 0.02, left.at[1] + 0.02];
+    hs.paints = [{ at: near, color: RED }, ...hs.paints!];
+    resetPatchColours(hs, eyes(hs).slice(0, 1));
+    expect(hs.paints!.map((p) => p.color)).toEqual([RED]);
+    expect(eyes(hs)[0].color).toBeUndefined();
+    expect(eyes(hs)[1].color).toBe(RED);
+  });
+
+  test("a retrace keeps colour by position, and heights stay separate", () => {
+    const hs = emptyHeights();
+    const [left] = eyes();
+    setPatchColours(hs, [left], RED);
+    setPatchHeights(hs, [left], 3);
+    // The same picture with its layers in another order.
+    const t = picture();
+    t.layers.reverse();
+    const ps = tracedPatches(t, hs).filter((p) => p.color === RED);
+    expect(ps.length).toBe(1);
+    expect(ps[0].layer).toBe(1);
+    expect(ps[0].h).toBe(3);
+  });
+
+  test("Make it pop and Flatten leave colours alone", () => {
+    const hs = emptyHeights();
+    setPatchColours(hs, eyes().slice(0, 1), RED);
+    makeItPop(hs, tracedPatches(picture()), 0.8);
+    flatten(hs);
+    expect(hs.paints!.length).toBe(1);
+  });
+
+  test("a re-crop moves paints with pins and drops those cropped away", () => {
+    const whole = { x: 0, y: 0, w: 1, h: 1, rotate: 0 };
+    const half = { x: 0.5, y: 0, w: 0.5, h: 1, rotate: 0 };
+    const hs: LayerHeights = { colour: [], pins: [{ at: [0.75, 0.5], h: 2 }], paints: [{ at: [0.75, 0.5], color: RED }, { at: [0.25, 0.5], color: BLUE }] };
+    remapHeights(hs, whole, half, 100, 100);
+    expect(hs.pins.length).toBe(1);
+    expect(hs.pins[0].at[0]).toBeCloseTo(0.5, 6);
+    expect(hs.paints!.map((p) => p.color)).toEqual([RED]);
+    expect(hs.paints![0].at[0]).toBeCloseTo(0.5, 6);
+    // Old saves have no paints.
+    const old: LayerHeights = { colour: [], pins: [] };
+    remapHeights(old, whole, half, 100, 100);
+    expect(old.paints).toBeUndefined();
+  });
+
+  for (const style of ["raised", "inlay"] as const) {
+    test(`${style}: a repainted patch joins that filament's part and leaves the other`, async () => {
+      const { design, assets: a } = pictureDesign(style);
+      const parts = (r: Awaited<ReturnType<typeof build>>) => r.assembled.filter((p) => p.name.includes("colour") || p.name.includes("decoration"));
+      const before = await build(design, a);
+      expect(parts(before).map((p) => p.color).sort()).toEqual(["#1E1E1E", "#F7D046", "#FFFFFF"]);
+      const eye = before.patches.filter((p) => p.layer === 1 && p.depth === 1)[0];
+      // Into a filament the picture already uses: no new part.
+      setPatchColours(design.picture!.heights!, [eye], "#FFFFFF");
+      const after = await build(design, a);
+      expect(after.patches.find((p) => samePt(p.at, eye.at))?.color).toBe("#FFFFFF");
+      expect(after.patches.find((p) => samePt(p.at, eye.at))?.painted).toBe(true);
+      expect(parts(after).map((p) => p.color).sort()).toEqual(["#1E1E1E", "#F7D046", "#FFFFFF"]);
+      // Repainting every black patch removes the black part altogether.
+      setPatchColours(design.picture!.heights!, after.patches.filter((p) => p.color === "#1E1E1E"), RED);
+      const red = await build(design, a);
+      expect(parts(red).map((p) => p.color).sort()).toEqual(["#D32F2F", "#F7D046", "#FFFFFF"]);
+      for (const p of red.assembled) expect(K().Manifold.ofMesh(new (K().Mesh)({ numProp: 3, vertProperties: p.mesh.vertices, triVerts: p.mesh.triangles })).status()).toBe("NoError");
+    });
+  }
+
+  test("a hairline between two traced colours closes when they share a filament", () => {
+    const area = (x: number) => K().CrossSection.square([4, 4]).translate([x, 0]);
+    const ref = (layer: number) => ({ layer, at: [0, 0] as [number, number], pins: [], paints: [], depth: 0 });
+    const gap = [{ cs: area(0), patch: ref(0) }, { cs: area(4.1), patch: ref(1) }];
+    expect(mergeAreas(gap).decompose().length).toBe(1);
+    // A real gap stays, and so do islands of one traced colour.
+    expect(mergeAreas([gap[0], { cs: area(4.5), patch: ref(1) }]).decompose().length).toBe(2);
+    expect(mergeAreas([gap[0], { cs: area(4.1), patch: ref(0) }]).decompose().length).toBe(2);
+  });
+
+  test("image Decorations on keys take paints too, and each key keeps its own", async () => {
+    const design = newDesign("row");
+    design.cap.style = "inlay";
+    const heights = emptyHeights();
+    design.keys = [0, 1].map(() => ({ ...design.keys[0], deco: { type: "image" as const, image: "p", heights: emptyHeights() } }));
+    const a = { ...assets, traced: { p: picture() } };
+    const first = (await build(design, a)).patches.filter((p) => p.owner === 0);
+    setPatchColours(heights, first.slice(0, 1), RED);
+    design.keys[0].deco = { type: "image", image: "p", heights };
+    const r = await build(design, a);
+    expect(r.patches.filter((p) => p.painted).map((p) => [p.owner, p.color])).toEqual([[0, RED]]);
+    expect(r.assembled.filter((p) => p.color === RED).length).toBe(1);
+  });
+
+  test("a colour with every patch repainted stops counting as a filament", async () => {
+    const { design, assets: a } = pictureDesign("inlay");
+    const before = await build(design, a);
+    expect(emptiedLayers(before.patches)).toEqual([]);
+    const eyes = before.patches.filter((p) => p.layer === 1);
+    setPatchColours(design.picture!.heights!, eyes.slice(0, 1), RED);
+    expect(emptiedLayers((await build(design, a)).patches)).toEqual([]);
+    setPatchColours(design.picture!.heights!, eyes, RED);
+    const emptied = emptiedLayers((await build(design, a)).patches);
+    expect(emptied).toEqual([1]);
+    design.picture!.emptied = emptied;
+    expect(designColours(design)).not.toContain("#1E1E1E");
+    expect(designColours(design)).toContain(RED);
+  });
+
+  test("the Design's colours include paints", () => {
+    const { design } = pictureDesign("inlay");
+    expect(designColours(design)).not.toContain(RED);
+    design.picture!.heights!.paints = [{ at: [0.5, 0.5], color: RED }];
+    expect(designColours(design)).toContain(RED);
+    const row = newDesign("row");
+    row.keys[0].deco = { type: "image", image: "p", heights: { colour: [], pins: [], paints: [{ at: [0.5, 0.5], color: BLUE }] } };
+    expect(designColours(row)).toContain(BLUE);
   });
 });
 

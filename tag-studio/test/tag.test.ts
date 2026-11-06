@@ -7,7 +7,7 @@ import { tagNames } from "../src/design/types.ts";
 import { withFace } from "./helpers.ts";
 import { nodeFont } from "../scripts/node-assets.ts";
 import { newTagDesign } from "../src/design/types.ts";
-import { FLUSH_DEPTH, setPatchHeights } from "@cs/design/heights.ts";
+import { FLUSH_DEPTH, emptyHeights, setPatchColours, setPatchHeights } from "@cs/design/heights.ts";
 
 beforeAll(async () => {
   await loadKernel();
@@ -173,4 +173,22 @@ test("a one-colour picture is one raisable patch", async () => {
   const { design, assets } = withFace(1);
   const r = await buildTag(design, "", assets);
   expect(r.patches.length).toBe(1);
+});
+
+test("a painted patch builds in its filament, on a one-colour picture too", async () => {
+  const { design, assets } = withFace(2);
+  const hs = (design.picture.heights ??= emptyHeights());
+  const before = await buildTag(design, "", assets);
+  const eye = before.patches.find((p) => p.layer === 1)!;
+  setPatchColours(hs, [eye], "#D32F2F");
+  const r = await buildTag(design, "", assets);
+  expect(r.patches.filter((p) => p.painted).map((p) => p.color)).toEqual(["#D32F2F"]);
+  expect(r.group.parts.map((p) => p.color)).toContain("#D32F2F");
+  expect(r.group.parts.map((p) => p.color)).toContain("#1E1E1E");
+
+  const one = withFace(1);
+  const whole = (await buildTag(one.design, "", one.assets)).patches;
+  setPatchColours((one.design.picture.heights ??= emptyHeights()), whole, "#D32F2F");
+  const painted = await buildTag(one.design, "", one.assets);
+  expect(painted.group.parts.map((p) => p.color)).toContain("#D32F2F");
 });

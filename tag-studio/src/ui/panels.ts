@@ -5,7 +5,7 @@ import { tagNames, type LoopSide, type NamePosition, type TagDesign } from "../d
 import { t, type StringKey } from "../i18n/strings.ts";
 import { button, field, h, pickFile, readDataUrl, section, segmented, slider, swatches, toggle } from "./dom.ts";
 import type { LayerHeights } from "@cs/design/types.ts";
-import { MAX_HEIGHT, TALL, colourHeight, emptyHeights, flatten, makeItPop, remapPins, resetPatches, setColourHeight, setPatchHeights } from "@cs/design/heights.ts";
+import { MAX_HEIGHT, TALL, colourHeight, emptyHeights, flatten, makeItPop, paintColours, remapHeights, resetPatches, setColourHeight, setPatchHeights } from "@cs/design/heights.ts";
 import { changed, rerender, selectedPatches, selectionChanged, state } from "./state.ts";
 import { cartoonize, cropDialog, loadImage, retracePicture } from "./picture-ui.ts";
 
@@ -93,10 +93,10 @@ export function pictureCard(): HTMLElement {
       button(`✂️ ${t("picture.crop")}`, async () => {
         const r = await cropDialog(d().files[p.image], p.crop, p.adjust);
         if (!r) return;
-        // Pins move with the picture under the new crop.
-        if (p.heights?.pins.length) {
+        // Pins and paints move with the picture under the new crop.
+        if (p.heights) {
           const img = await loadImage(d().files[p.image]);
-          p.heights.pins = remapPins(p.heights.pins, p.crop, r.crop, img.naturalWidth, img.naturalHeight);
+          remapHeights(p.heights, p.crop, r.crop, img.naturalWidth, img.naturalHeight);
         }
         Object.assign(p, r);
         p.useCartoon = false;
@@ -246,7 +246,7 @@ function heightsBlock(get: () => LayerHeights, hs: LayerHeights | undefined, col
       h(
         "div",
         { class: "sel-box" },
-        slider(dotLabel(`${t("heights.selected")}: ${sel.length}`, colours[sel[0].layer]), sel[0].h, 0, MAX_HEIGHT, 0.2, "mm", (v) => {
+        slider(dotLabel(`${t("heights.selected")}: ${sel.length}`, sel[0].color), sel[0].h, 0, MAX_HEIGHT, 0.2, "mm", (v) => {
           setPatchHeights(get(), selectedPatches(), v);
           changed();
         }, TALL),
@@ -432,7 +432,7 @@ export function ringsCard(): HTMLElement {
 export function designColours(x: TagDesign): string[] {
   const out = [x.colours.plate];
   if (tagNames(x).some(Boolean)) out.push(x.colours.name);
-  if (x.picture.image) out.push(...x.picture.palette.slice(0, Math.max(1, x.picture.colors)));
+  if (x.picture.image) out.push(...x.picture.palette.slice(0, Math.max(1, x.picture.colors)), ...paintColours(x.picture.heights));
   out.push(...x.rings.colors.slice(0, x.rings.count));
   return [...new Set(out.map((c) => c.toUpperCase()))];
 }

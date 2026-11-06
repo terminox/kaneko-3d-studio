@@ -173,6 +173,23 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .status { position: absolute; top: 56px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--panel); padding: 5px 12px; border-radius: 999px; font-size: 12.5px; }
 .stage-hint { position: absolute; bottom: 12px; left: 0; right: 0; text-align: center; font-size: 12px; color: var(--muted); pointer-events: none; }
 
+/* Recolouring picked patches: a bar over the preview */
+.colour-bar { position: absolute; left: 12px; right: 12px; bottom: 10px; max-width: 760px; margin-inline: auto; display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border-radius: 14px; border: 1px solid var(--accent); background: color-mix(in srgb, var(--panel) 94%, transparent); backdrop-filter: blur(6px); }
+.colour-bar[hidden] { display: none; }
+.cb-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.cb-title { flex: 1; min-width: 120px; font-size: 13px; font-weight: 600; }
+.cb-note { color: var(--warn); }
+.colour-bar .on { border-color: var(--accent); color: var(--accent); }
+.colour-bar .swatches { padding: 5px; }
+.stage.picking .notes { bottom: 150px; }
+.stage.picking .stage-hint { display: none; }
+@media (pointer: coarse) {
+  .colour-bar button { min-height: 40px; touch-action: manipulation; }
+  /* Too many to wrap at this size: one row to swipe through. */
+  .colour-bar .swatches { flex-wrap: nowrap; overflow-x: auto; touch-action: pan-x; }
+  .colour-bar .sw { flex: none; width: 40px; height: 40px; border-radius: 10px; touch-action: pan-x; }
+}
+
 /* Price and order */
 .price { display: flex; flex-direction: column; gap: 2px; }
 .price-big { font-size: 26px; font-weight: 800; background: linear-gradient(135deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }

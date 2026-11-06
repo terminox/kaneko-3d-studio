@@ -9,7 +9,11 @@ import { onBuilt, requestBuild, requestExport } from "./engine.ts";
 import { baseCard, capCard, colourCard, contentCard, fitCard, kindCard, loadCatalogs, nameField, orderCard, switchesCard, type FontInfo } from "./panels.ts";
 import { cartoonAvailable, retraceAll } from "./picture-ui.ts";
 import { setSnapshot } from "./order-ui.ts";
-import { patchAt, samePt } from "../design/heights.ts";
+import { emptiedLayers, emptyHeights, patchAt, resetPatchColours, samePt, setPatchColours } from "../design/heights.ts";
+import { FILAMENTS, filamentName } from "../design/palette.ts";
+import { designColours } from "../design/price.ts";
+import type { LayerHeights } from "../design/types.ts";
+import { renderColourBar } from "./colour-bar.ts";
 
 const app = document.getElementById("app")!;
 const left = h("aside", { class: "panel left" });
@@ -19,7 +23,8 @@ const dims = h("div", { class: "dims" });
 const status = h("div", { class: "status", attrs: { role: "status" } });
 const notes = h("div", { class: "notes" });
 const stageTools = h("div", { class: "stage-tools" });
-const stage = h("section", { class: "stage" }, host, h("div", { class: "stage-top" }, stageTools, dims), notes, status, h("div", { class: "stage-hint" }));
+const colourBarHost = h("div", { class: "colour-bar", attrs: { hidden: true } });
+const stage = h("section", { class: "stage" }, host, h("div", { class: "stage-top" }, stageTools, dims), notes, status, h("div", { class: "stage-hint" }), colourBarHost);
 const header = h("header", { class: "bar" });
 app.append(header, h("main", { class: "layout" }, left, stage, right));
 
@@ -148,7 +153,13 @@ function renderStageTools() {
     }, state.section ? "ghost on" : "ghost"),
     button(`⤢ ${t("view.reset")}`, () => viewport.resetView()),
   ));
-  stage.querySelector(".stage-hint")!.textContent = t(state.view === "print" ? "view.printHint" : "view.hint");
+  paintHint();
+}
+
+function paintHint() {
+  const assembled = state.view !== "print";
+  const pickable = assembled && Boolean(state.build?.patches.length);
+  stage.querySelector(".stage-hint")!.textContent = `${t(assembled ? "view.hint" : "view.printHint")}${pickable ? ` · ${t("view.pickHint")}` : ""}`;
 }
 
 function renderPanels() {
@@ -184,19 +195,64 @@ function showModel(frame = false) {
   dims.textContent = s ? `${s.x.toFixed(0)} × ${s.y.toFixed(0)} × ${s.z.toFixed(1)} mm${plates}` : "";
 }
 
-/** Identifies a build's patches and which have their own height (not the heights themselves). */
-const patchKey = (b: typeof state.build) => (b?.patches ?? []).map((p) => `${p.owner}:${p.at}${p.own ? "*" : ""}`).join("|");
+/** Identifies a build's patches, which have their own height (not the heights themselves) and their colours. */
+const patchKey = (b: typeof state.build) => (b?.patches ?? []).map((p) => `${p.owner}:${p.at}${p.own ? "*" : ""}:${p.color}`).join("|");
 /** True while a panel input has focus: re-rendering then would cut a drag short. */
 const editing = () => document.activeElement instanceof HTMLInputElement && left.contains(document.activeElement);
 
-function paintHighlight() {
-  viewport.highlight(state.view === "assembled" ? selectedPatches() : []);
+/** A tap acts like Shift-click: tablets have no Shift key. Ends when nothing is picked. */
+let pickSeveral = false;
+
+/** The settings a picked patch's edits go to. */
+function heightsOf(owner: number): LayerHeights | null {
+  const { picture, keys } = state.design;
+  if (owner < 0) return picture ? (picture.heights ??= emptyHeights()) : null;
+  const deco = keys[owner]?.deco;
+  return deco?.type === "image" ? (deco.heights ??= emptyHeights()) : null;
 }
 
-// Click a patch to pick it; Shift-click adds or removes; a click elsewhere clears.
-viewport.onPick = (hit, shift) => {
+function paintHighlight() {
+  const sel = state.view === "assembled" ? selectedPatches() : [];
+  viewport.highlight(sel);
+  if (!sel.length) pickSeveral = false;
+  stage.classList.toggle("picking", sel.length > 0);
+  paintHint();
+  const hs = () => heightsOf(sel[0].owner);
+  renderColourBar(colourBarHost, sel.length
+    ? {
+        patches: sel,
+        filaments: FILAMENTS.map((f) => ({ hex: f.hex, name: f[state.lang] })),
+        colourName: (hex) => filamentName(hex, state.lang),
+        several: pickSeveral,
+        note: designColours(state.design).length > 4 ? t("colour.over4") : undefined,
+        labels: { selected: t("heights.selected"), several: t("parts.several"), reset: t("parts.resetColour"), deselect: t("heights.deselect") },
+        onColour: (hex) => {
+          const to = hs();
+          if (to) setPatchColours(to, selectedPatches(), hex);
+          changed();
+        },
+        onSeveral: () => {
+          pickSeveral = !pickSeveral;
+          paintHighlight();
+        },
+        onReset: () => {
+          const to = hs();
+          if (to) resetPatchColours(to, selectedPatches());
+          changed();
+        },
+        onDeselect: () => {
+          state.selected = [];
+          selectionChanged();
+        },
+      }
+    : null);
+}
+
+// Click a patch to pick it; Shift-click (or Pick several) adds or removes; a click elsewhere clears.
+viewport.onPick = (hit, shiftKey) => {
   const patches = state.build?.patches ?? [];
   if (state.view !== "assembled" || !patches.length) return;
+  const shift = shiftKey || pickSeveral;
   const p = hit ? patchAt(patches, hit) : null;
   if (!p) {
     if (shift || !state.selected.length) return;
@@ -237,9 +293,17 @@ onBuilt((r) => {
       state.design.placedSwitches = r.switchesPerCap;
       save("design", state.design);
     }
+    // Likewise which traced colours no longer use their filament.
+    const picture = state.design.picture;
+    const emptied = picture ? emptiedLayers(r.patches.filter((p) => p.owner < 0)) : [];
+    const emptiedChanged = Boolean(picture) && emptied.join() !== (picture?.emptied ?? []).join();
+    if (picture && emptiedChanged) {
+      picture.emptied = emptied;
+      save("design", state.design);
+    }
     // The height tools list the patches and the Switch note shows the count:
     // refresh them when either changes, unless a slider is mid-drag.
-    if (kept.length !== state.selected.length || ((patchKey(r) !== before || switchesChanged) && !editing())) {
+    if (kept.length !== state.selected.length || ((patchKey(r) !== before || switchesChanged || emptiedChanged) && !editing())) {
       state.selected = kept;
       renderPanels();
     }

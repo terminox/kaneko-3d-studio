@@ -72,7 +72,7 @@ export async function decorationLayers(key: Key, assets: Assets): Promise<Layer[
     case "image": {
       const t = assets.traced[d.image];
       if (!t) return [];
-      return tracedPatches(t, d.heights).map((p) => ({ cs: p.cs, color: t.layers[p.layer].color, h: p.h, patch: patchRef(p) }));
+      return tracedPatches(t, d.heights).map((p) => ({ cs: p.cs, color: p.color ?? t.layers[p.layer].color, h: p.h, patch: patchRef(p) }));
     }
   }
 }

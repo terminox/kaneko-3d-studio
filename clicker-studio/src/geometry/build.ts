@@ -31,7 +31,7 @@ export type BuildResult = {
   /** Keyring loop centres and the Base bottom z, for the preview's chain. */
   loops: [number, number][];
   bottom: number;
-  /** Raised picture patches, for picking in the preview (assembled frame). */
+  /** Picture patches, for picking in the preview (assembled frame). */
   patches: PatchInfo[];
 };
 
@@ -91,7 +91,7 @@ function pictureSpec(design: Design, assets: Assets): { outline: CrossSection; d
   const outline = offset(offset(art, Math.max(0, design.cap.border) + 0.6), -0.6);
   const deco = tracedPatches(t, p.heights).map((q) => ({
     cs: q.cs.scale(s).translate(c),
-    color: p.palette[q.layer] ?? t.layers[q.layer].color,
+    color: q.color ?? p.palette[q.layer] ?? t.layers[q.layer].color,
     h: q.h,
     patch: patchRef(q),
   }));
@@ -170,7 +170,7 @@ export async function build(design: Design, assets: Assets): Promise<BuildResult
       // A 3D model stands on the cap top, fused into the cap.
       if (c.extra) g.solids[0].m = g.solids[0].m.add(c.extra.translate([0, 0, g.top - 0.2]));
       for (const s of g.solids) assembled.push(part(s, c.at));
-      if (cap.style === "raised") patches.push(...capPatches(c, g.top, design.kind === "picture" ? -1 : i, Math.max(0.4, cap.decoHeight)));
+      patches.push(...capPatches(c, g.top, design.kind === "picture" ? -1 : i, Math.max(0.4, cap.decoHeight), cap.style === "inlay"));
       // Print: raised caps stand on their skirt; inlaid caps lie face down.
       const flip = cap.style === "inlay";
       print.push({ name: c.label, parts: g.solids.map((s) => ({ name: s.name, color: s.color, mesh: toMesh(flip ? s.m.rotate([180, 0, 0]) : s.m) })) });
@@ -217,14 +217,18 @@ export async function build(design: Design, assets: Assets): Promise<BuildResult
   };
 }
 
-/** A cap's raised picture patches, as the preview picks them (footprints not clipped to the flat top: close enough to click). */
-function capPatches(c: CapSpec, top: number, owner: number, def: number): PatchInfo[] {
+/**
+ * A cap's picture patches, as the preview picks them (footprints not clipped to
+ * the flat top: close enough to click). An inlay ignores heights: every patch is flush.
+ */
+function capPatches(c: CapSpec, top: number, owner: number, def: number, inlay: boolean): PatchInfo[] {
   const out: PatchInfo[] = [];
   for (const l of c.deco) {
     if (!l.patch) continue;
-    const h = l.h ?? def;
+    const h = inlay ? 0 : (l.h ?? def);
     const rings = l.cs.translate(c.at).simplify(0.05).toPolygons() as [number, number][][];
-    out.push({ owner, layer: l.patch.layer, at: l.patch.at, pins: l.patch.pins, depth: l.patch.depth, h, own: l.patch.pins.length > 0, top: top + h, rings });
+    const { layer, at, pins, paints, depth } = l.patch;
+    out.push({ owner, layer, at, pins, depth, h, own: !inlay && pins.length > 0, color: l.color, paints, painted: paints.length > 0, top: top + h, rings });
   }
   return out;
 }

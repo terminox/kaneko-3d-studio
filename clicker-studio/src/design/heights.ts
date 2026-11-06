@@ -1,7 +1,7 @@
-// Layer heights: edits to a picture's per-colour heights and per-patch pins,
-// plus picking helpers. No kernel, so the panels and preview can use it too
-// (Tag Studio shares it).
-import type { LayerHeights, Pin, PictureOptions } from "./types.ts";
+// Layer heights and part colours: edits to a picture's per-colour heights and
+// per-patch pins and paints, plus picking helpers. No kernel, so the panels and
+// preview can use it too (Tag Studio shares it).
+import type { LayerHeights, PictureOptions } from "./types.ts";
 import type { Pt, Ring } from "../geometry/path.ts";
 
 /** Slider range, mm above the top. 0 is flush. */
@@ -29,6 +29,12 @@ export type PatchInfo = {
   h: number;
   /** True when a pin sets its height, rather than its colour. */
   own: boolean;
+  /** Its filament. */
+  color: string;
+  /** The paints that land on it (their `at`). */
+  paints: [number, number][];
+  /** True when a paint sets its filament, rather than its colour. */
+  painted: boolean;
   /** Its top, in the preview's model frame. */
   top: number;
   /** Its footprint, in the preview's model frame (mm). */
@@ -74,9 +80,19 @@ export function emptyHeights(): LayerHeights {
 
 const round = (h: number) => Math.round(Math.min(MAX_HEIGHT, Math.max(0, h)) * 10) / 10;
 
-/** Drops every pin on these patches. Safe with a stale build: pins are matched by position. */
+type Spot = { at: [number, number] };
+
+/** `spots` without those on these patches. Safe with a stale build: spots are matched by position. */
+function without<T extends Spot>(spots: T[], patches: (Spot & { landed: [number, number][] })[]): T[] {
+  return spots.filter((s) => !patches.some((p) => samePt(s.at, p.at) || p.landed.some((q) => samePt(q, s.at))));
+}
+
 function dropPins(hs: LayerHeights, patches: Pick<PatchInfo, "at" | "pins">[]) {
-  hs.pins = hs.pins.filter((pin) => !patches.some((p) => samePt(pin.at, p.at) || p.pins.some((q) => samePt(q, pin.at))));
+  hs.pins = without(hs.pins, patches.map((p) => ({ at: p.at, landed: p.pins })));
+}
+
+function dropPaints(hs: LayerHeights, patches: Pick<PatchInfo, "at" | "paints">[]) {
+  hs.paints = without(hs.paints ?? [], patches.map((p) => ({ at: p.at, landed: p.paints })));
 }
 
 /** Gives these patches their own height. */
@@ -88,6 +104,28 @@ export function setPatchHeights(hs: LayerHeights, patches: Pick<PatchInfo, "at" 
 /** These patches follow their colour again. */
 export function resetPatches(hs: LayerHeights, patches: Pick<PatchInfo, "at" | "pins">[]) {
   dropPins(hs, patches);
+}
+
+/** Gives these patches their own filament. */
+export function setPatchColours(hs: LayerHeights, patches: Pick<PatchInfo, "at" | "paints">[], color: string) {
+  dropPaints(hs, patches);
+  for (const p of patches) hs.paints!.push({ at: [p.at[0], p.at[1]], color });
+}
+
+/** These patches follow their colour again. */
+export function resetPatchColours(hs: LayerHeights, patches: Pick<PatchInfo, "at" | "paints">[]) {
+  dropPaints(hs, patches);
+}
+
+/** The filaments painted onto patches. */
+export function paintColours(hs: LayerHeights | undefined): string[] {
+  return (hs?.paints ?? []).map((p) => p.color);
+}
+
+/** Traced colours where every patch has its own filament, so the colour's filament goes unused. */
+export function emptiedLayers(patches: Pick<PatchInfo, "layer" | "painted">[]): number[] {
+  const layers = [...new Set(patches.map((p) => p.layer))];
+  return layers.filter((l) => patches.every((p) => p.layer !== l || p.painted)).sort((a, b) => a - b);
 }
 
 export function setColourHeight(hs: LayerHeights, layer: number, h: number) {
@@ -146,8 +184,14 @@ function fromSource([px, py]: Pt, c: Crop, w: number, h: number): [number, numbe
 }
 
 /** Moves pins to a new crop of the same `w` × `h` image; pins cropped away are dropped. */
-export function remapPins(pins: Pin[], from: Crop, to: Crop, w: number, h: number): Pin[] {
+export function remapPins<T extends Spot>(pins: T[], from: Crop, to: Crop, w: number, h: number): T[] {
   return pins
     .map((p) => ({ ...p, at: fromSource(toSource(p.at, from, w, h), to, w, h) }))
     .filter((p) => p.at.every((v) => v >= 0 && v <= 1));
+}
+
+/** Moves a picture's pins and paints to a new crop of the same `w` × `h` image. */
+export function remapHeights(hs: LayerHeights, from: Crop, to: Crop, w: number, h: number) {
+  hs.pins = remapPins(hs.pins, from, to, w, h);
+  if (hs.paints) hs.paints = remapPins(hs.paints, from, to, w, h);
 }

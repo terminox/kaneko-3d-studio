@@ -21,7 +21,7 @@ The preview needs WebGL. For the **AI cartoon** button, copy `.env.example` to `
 
 | Group | What it sets |
 |---|---|
-| Picture | Upload, crop/rotate/adjust, AI cartoon, background removal, enclosed gaps, 1–5 colours and the filament for each, layer heights, width |
+| Picture | Upload, crop/rotate/adjust, AI cartoon, background removal, enclosed gaps, 1–5 colours and the filament for each, layer heights, part colours, width |
 | Name | The names (one tag each), which one to preview, font, letter height, stroke weight, letter spacing, position (below, above, left or right of the picture), gap |
 | Colours | Plate and name colours, colour pairs, and the filament count (warns past 4, the AMS Lite limit) |
 | Outline rings | 0–2 sticker-style bands around the artwork, each with its own colour |
@@ -33,6 +33,8 @@ Colours come from `../clicker-studio/filaments.json`. Artwork in the plate's col
 "Plate 1" in the preview shows how every name packs onto A1 plates, with the top-right corner left free for the prime tower.
 
 **Layer heights** ([ADR 0007](../docs/adr/0007-per-patch-layer-heights.md)) work as in Clicker Studio. Each picture colour gets a height (0–8 mm above the plate; 0 is flush). Click a patch in the "This tag" preview to give it its own height, and Shift-click to pick several. Make it pop and Flatten work as there. The name and rings keep the Raised height.
+
+**Part colours** ([ADR 0010](../docs/adr/0010-per-patch-colours.md)) work as in Clicker Studio. Click or tap a patch in the "This tag" preview and choose a filament in the bar over it. Only that patch changes, on every tag.
 
 ## Command line
 

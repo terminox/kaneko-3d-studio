@@ -11,7 +11,7 @@ import { t, type StringKey } from "../i18n/strings.ts";
 import { button, field, h, pickFile, readDataUrl, section, segmented, slider, swatches, toggle } from "./dom.ts";
 import { changed, rerender, selectedPatches, selectionChanged, state, switchKind } from "./state.ts";
 import { cartoonize, cropDialog, loadImage, retracePicture, retraceKeyImages } from "./picture-ui.ts";
-import { MAX_HEIGHT, TALL, colourHeight, emptyHeights, flatten, makeItPop, remapPins, resetPatches, setColourHeight, setPatchHeights } from "../design/heights.ts";
+import { MAX_HEIGHT, TALL, colourHeight, emptyHeights, flatten, makeItPop, remapHeights, resetPatches, setColourHeight, setPatchHeights } from "../design/heights.ts";
 import { orderActions } from "./order-ui.ts";
 
 const adv = () => state.mode === "advanced";
@@ -519,10 +519,10 @@ function pictureCard(): HTMLElement {
     button(`✂️ ${t("picture.crop")}`, async () => {
       const r = await cropDialog(d().files[p.image], p.crop, p.adjust);
       if (!r) return;
-      // Pins move with the picture under the new crop.
-      if (p.heights?.pins.length) {
+      // Pins and paints move with the picture under the new crop.
+      if (p.heights) {
         const img = await loadImage(d().files[p.image]);
-        p.heights.pins = remapPins(p.heights.pins, p.crop, r.crop, img.naturalWidth, img.naturalHeight);
+        remapHeights(p.heights, p.crop, r.crop, img.naturalWidth, img.naturalHeight);
       }
       Object.assign(p, r);
       p.useCartoon = false;
@@ -763,7 +763,7 @@ function heightsBlock(owner: number, get: () => LayerHeights, hs: LayerHeights |
       h(
         "div",
         { class: "sel-box" },
-        slider(dotLabel(`${t("heights.selected")}: ${sel.length}`, colours[sel[0].layer]), sel[0].h, 0, MAX_HEIGHT, 0.2, "mm", (v) => {
+        slider(dotLabel(`${t("heights.selected")}: ${sel.length}`, sel[0].color), sel[0].h, 0, MAX_HEIGHT, 0.2, "mm", (v) => {
           setPatchHeights(get(), mine(), v);
           changed();
         }, TALL),

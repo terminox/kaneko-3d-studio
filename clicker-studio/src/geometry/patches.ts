@@ -1,20 +1,22 @@
 // A traced picture -> patches: each connected island of one colour, with the
-// height the owner gave it (see design/heights.ts).
+// height and filament the owner gave it (see design/heights.ts).
 import type { LayerHeights } from "../design/types.ts";
 import { pointInRings, signedArea } from "../design/heights.ts";
-import type { CrossSection } from "./kernel.ts";
-import { rings } from "./outline.ts";
+import { K, type CrossSection } from "./kernel.ts";
+import { offset, rings } from "./outline.ts";
 import { mapRings, type Pt, type Ring } from "./path.ts";
 import type { Traced } from "./decoration.ts";
 
 /** Where a patch came from, carried on its Layer through fitting and building. */
-export type PatchRef = { layer: number; at: [number, number]; pins: [number, number][]; depth: number };
+export type PatchRef = { layer: number; at: [number, number]; pins: [number, number][]; paints: [number, number][]; depth: number };
 
 export type Patch = PatchRef & {
   /** The island, in traced-image units with y up (as `flipY` gives). */
   cs: CrossSection;
   /** Its own or its colour's height; undefined = the default. */
   h?: number;
+  /** Its own filament; undefined = its colour's. */
+  color?: string;
 };
 
 /** A point well inside `cs`: the middle of what is left after shrinking it. */
@@ -41,7 +43,10 @@ export function tracedPatches(t: Traced, heights?: LayerHeights, outlineAsLayer 
   const src = t.layers.length ? t.layers.map((l) => l.rings) : outlineAsLayer ? [t.outline] : [];
   const pins = heights?.pins ?? [];
   // Pins live in 0–1 picture units, y down; patches in pixels, y up.
-  const pinPts: Pt[] = pins.map((p) => [p.at[0] * t.width, -p.at[1] * t.height]);
+  const toPixels = ([x, y]: [number, number]): Pt => [x * t.width, -y * t.height];
+  const pinPts = pins.map((p) => toPixels(p.at));
+  const paints = heights?.paints ?? [];
+  const paintPts = paints.map((p) => toPixels(p.at));
   const out: Patch[] = [];
   const outers: Ring[][] = [];
   src.forEach((rs, layer) => {
@@ -52,12 +57,15 @@ export function tracedPatches(t: Traced, heights?: LayerHeights, outlineAsLayer 
       if (!p) continue;
       const hits = pinPts.flatMap((q, i) => (pointInRings(polys, q) ? [i] : []));
       const own = hits.length ? pins[hits[hits.length - 1]].h : undefined;
+      const painted = paintPts.flatMap((q, i) => (pointInRings(polys, q) ? [i] : []));
       out.push({
         cs,
         layer,
         h: own ?? heights?.colour[layer] ?? undefined,
+        color: painted.length ? paints[painted[painted.length - 1]].color : undefined,
         at: [p[0] / t.width, -p[1] / t.height],
         pins: hits.map((i) => pins[i].at),
+        paints: painted.map((i) => paints[i].at),
         depth: 0,
       });
       outers.push(polys.filter((r) => signedArea(r) > 0));
@@ -65,12 +73,27 @@ export function tracedPatches(t: Traced, heights?: LayerHeights, outlineAsLayer 
   });
   // Depth: how many other patches' outer contours surround this one.
   out.forEach((p, i) => {
-    const pt: Pt = [p.at[0] * t.width, -p.at[1] * t.height];
+    const pt = toPixels(p.at);
     p.depth = outers.filter((o, j) => j !== i && o.some((r) => pointInRings([r], pt))).length;
   });
   return out;
 }
 
+/** Gaps narrower than twice this close when traced colours merge, mm. */
+const HAIRLINE = 0.08;
+
+/**
+ * The union of areas printed as one. The tracer fits each colour on its own,
+ * leaving hairlines between neighbours: harmless between two filaments, but
+ * the cap would show through where two traced colours became one filament.
+ */
+export function mergeAreas(areas: { cs: CrossSection; patch?: PatchRef }[]): CrossSection {
+  if (areas.length === 1) return areas[0].cs;
+  const all = K().CrossSection.union(areas.map((a) => a.cs));
+  const traced = new Set(areas.flatMap((a) => (a.patch ? [a.patch.layer] : [])));
+  return traced.size > 1 ? offset(offset(all, HAIRLINE), -HAIRLINE) : all;
+}
+
 export function patchRef(p: Patch): PatchRef {
-  return { layer: p.layer, at: p.at, pins: p.pins, depth: p.depth };
+  return { layer: p.layer, at: p.at, pins: p.pins, paints: p.paints, depth: p.depth };
 }
