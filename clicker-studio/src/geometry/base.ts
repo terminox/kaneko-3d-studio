@@ -42,7 +42,8 @@ export function loopCentres(foot: CrossSection, loop: Loop, holeR: number): [num
   // Place the loop where the footprint actually is on that side: probe the edge at the centre line.
   if (loop === "left" || loop === "both") pts.push([edgeX(foot, cy, -1) - d, cy]);
   if (loop === "right" || loop === "both") pts.push([edgeX(foot, cy, 1) + d, cy]);
-  if (loop === "top") pts.push([cx, edgeY(foot, cx) + d]);
+  if (loop === "top" || loop === "topBottom") pts.push([cx, edgeY(foot, cx, 1) + d]);
+  if (loop === "bottom" || loop === "topBottom") pts.push([cx, edgeY(foot, cx, -1) - d]);
   return pts;
 }
 
@@ -53,10 +54,11 @@ function edgeX(cs: CrossSection, y: number, dir: 1 | -1): number {
   return dir > 0 ? hit.max[0] : hit.min[0];
 }
 
-function edgeY(cs: CrossSection, x: number): number {
+function edgeY(cs: CrossSection, x: number, dir: 1 | -1): number {
   const b = cs.bounds();
   const probe = K().CrossSection.square([0.5, b.max[1] - b.min[1] + 2], true).translate([x, (b.min[1] + b.max[1]) / 2]);
-  return cs.intersect(probe).bounds().max[1];
+  const hit = cs.intersect(probe).bounds();
+  return dir > 0 ? hit.max[1] : hit.min[1];
 }
 
 /** A Base with a skirt room per key and a Switch Pocket per Switch. */

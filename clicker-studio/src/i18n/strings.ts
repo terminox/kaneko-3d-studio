@@ -160,7 +160,9 @@ const S = {
   "loop.left": ["← ซ้าย", "← Left"],
   "loop.top": ["↑ บน", "↑ Top"],
   "loop.right": ["ขวา →", "Right →"],
-  "loop.both": ["↔ สองข้าง", "↔ Both"],
+  "loop.bottom": ["↓ ล่าง", "↓ Bottom"],
+  "loop.both": ["↔ ซ้าย + ขวา", "↔ Left + right"],
+  "loop.topBottom": ["↕ บน + ล่าง", "↕ Top + bottom"],
   "loop.hole": ["ขนาดรูห่วง", "Loop hole"],
 
   "chain.label": ["สายห้อย", "Chain"],

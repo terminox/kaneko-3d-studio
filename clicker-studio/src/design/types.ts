@@ -21,7 +21,8 @@ export type Layout = "row" | "column" | "grid" | "wasd" | "arrows" | "t" | "cust
 
 export type Texture = "none" | "ribs" | "sawtooth" | "grooves" | "diamond" | "wave" | "dots";
 
-export type Loop = "none" | "left" | "top" | "right" | "both";
+/** Keyring loop sides. "both" is left + right (kept for saved designs); "topBottom" is top + bottom. */
+export type Loop = "none" | "left" | "top" | "right" | "bottom" | "both" | "topBottom";
 
 /** Which parts get exported. */
 export type PartsMode = "cap+base" | "caps" | "base" | "az-set";

@@ -1,10 +1,10 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { K, loadKernel, type Manifold } from "../src/geometry/kernel.ts";
 import { buildCap, housingEnvelope } from "../src/geometry/cap.ts";
-import { buildBase } from "../src/geometry/base.ts";
+import { baseFootprint, buildBase, loopCentres } from "../src/geometry/base.ts";
 import { capOutline } from "../src/geometry/outline.ts";
 import { DEFAULT_FIT, capHeights } from "../src/geometry/switch.ts";
-import { newDesign, type CapShape } from "../src/design/types.ts";
+import { newDesign, type CapShape, type Loop } from "../src/design/types.ts";
 import { build, packPlates } from "../src/geometry/build.ts";
 import { assets } from "./helpers.ts";
 
@@ -97,5 +97,38 @@ describe("build", () => {
     let minZ = Infinity;
     for (let i = 2; i < v.length; i += 3) minZ = Math.min(minZ, v[i]);
     expect(minZ).toBeCloseTo(0, 4);
+  });
+});
+
+describe("keyring loops", () => {
+  test("each side puts its loop just outside that edge, with a hole through the Base", () => {
+    const design = newDesign("cap");
+    const outline = capOutline("heart", 20, 2);
+    const keys = [{ at: [0, 0] as [number, number], outline }];
+    const foot = baseFootprint(keys, design.base, fit);
+    const fb = foot.bounds();
+    const holeR = design.base.loopHole / 2;
+    const cases: [Loop, number][] = [["none", 0], ["left", 1], ["right", 1], ["top", 1], ["bottom", 1], ["both", 2], ["topBottom", 2]];
+    for (const [loop, n] of cases) {
+      const pts = loopCentres(foot, loop, holeR);
+      expect(pts.length).toBe(n);
+      if (loop === "bottom" || loop === "topBottom") {
+        const low = pts.find((p) => p[1] < fb.min[1]);
+        expect(low).toBeDefined();
+        expect(Math.abs(low![0] - (fb.min[0] + fb.max[0]) / 2)).toBeLessThan(1e-6);
+      }
+      if (loop === "topBottom") expect(pts.some((p) => p[1] > fb.max[1])).toBe(true);
+      const base = buildBase(keys, { ...design.base, loop }, fit, foot);
+      valid(base);
+      expect(base.genus()).toBeGreaterThanOrEqual(0);
+      // The hole is open: a thin probe at each loop centre finds no material.
+      for (const c of pts) {
+        const probe = K().Manifold.cylinder(40, holeR * 0.6, holeR * 0.6, 24).translate([c[0], c[1], -20]);
+        expect(base.intersect(probe).volume()).toBeLessThan(1e-3);
+        // ...and the ring around it is there.
+        const ring = K().Manifold.cylinder(40, holeR + 1.5, holeR + 1.5, 24).translate([c[0], c[1], -20]).subtract(K().Manifold.cylinder(40, holeR + 0.5, holeR + 0.5, 24).translate([c[0], c[1], -20]));
+        expect(base.intersect(ring).volume()).toBeGreaterThan(1);
+      }
+    }
   });
 });

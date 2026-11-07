@@ -1092,7 +1092,7 @@ export function baseCard(): HTMLElement | null {
       field(
         t("loop.label"),
         segmented(
-          (["none", "left", "top", "right", "both"] as Loop[]).map((v) => ({ value: v, label: t(`loop.${v}` as StringKey) })),
+          (["none", "left", "top", "right", "bottom", "both", "topBottom"] as Loop[]).map((v) => ({ value: v, label: t(`loop.${v}` as StringKey) })),
           b.loop,
           (v) => {
             b.loop = v;
