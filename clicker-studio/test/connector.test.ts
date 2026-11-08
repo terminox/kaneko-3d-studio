@@ -1,7 +1,9 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { K, loadKernel, type Manifold } from "../src/geometry/kernel.ts";
 import { baseFootprint, baseJoints, baseLevels, baseSupports, buildBase, loopCentres, connectorSides } from "../src/geometry/base.ts";
-import { capOutline } from "../src/geometry/outline.ts";
+import { capOutline, centredOnSwitch } from "../src/geometry/outline.ts";
+import { placeSwitches } from "../src/geometry/switches.ts";
+import type { BaseKey } from "../src/geometry/base.ts";
 import { DEFAULT_FIT } from "../src/geometry/switch.ts";
 import { newDesign, upgradeBase, type BaseOptions, type CapShape, type Connectors, type End, type Side } from "../src/design/types.ts";
 import { NO_CONNECTORS, OPPOSITE, SIDES, pinSide } from "../src/design/connectors.ts";
@@ -25,6 +27,13 @@ function base(c: Partial<Connectors>, over: Partial<BaseOptions> = {}, shape: Ca
   return { opts, foot, m: buildBase(k, opts, fit, foot), joints: baseJoints(k, opts, fit, foot), sup: baseSupports(k, opts, fit, foot), bottom: baseLevels(opts, fit).bottom };
 }
 
+/** A Base over several keys (a row, a grid, or one cap on several switches). */
+function multi(k: BaseKey[], c: Partial<Connectors>) {
+  const opts = { ...newDesign("cap").base, connectors: ends(c) };
+  const foot = baseFootprint(k, opts, fit);
+  return { opts, foot, m: buildBase(k, opts, fit, foot), joints: baseJoints(k, opts, fit, foot), sup: baseSupports(k, opts, fit, foot), bottom: baseLevels(opts, fit).bottom };
+}
+
 function valid(m: Manifold) {
   expect(m.status()).toBe("NoError");
   expect(m.isEmpty()).toBe(false);
@@ -37,9 +46,10 @@ const role = (joints: Joint[], r: "tab" | "socket") => joints.find((j) => j.role
 
 /**
  * Two pieces joined at A's socket: B (A's copy, moved by the pitch) has its tab in
- * A's socket. No overlap, A's pin inside B's hole, and ±5° of swing about the pin.
+ * A's socket. No overlap, A's pin inside B's hole, and ±`swing`° about the pin
+ * (wide pieces swing less: their corners are the stop).
  */
-function expectMates(a: ReturnType<typeof base>, socketSide: Side) {
+function expectMates(a: ReturnType<typeof base>, socketSide: Side, swing = 5) {
   const { m, joints, foot, bottom } = a;
   const d = sideDir(socketSide);
   const turned = d[0] ? foot : foot.rotate(90);
@@ -55,7 +65,7 @@ function expectMates(a: ReturnType<typeof base>, socketSide: Side) {
   const probe = K().Manifold.cylinder(2.5, 1.9, 1.9, 32).translate([pin[0], pin[1], bottom + 2.05]);
   expect(probe.intersect(m).volume()).toBeGreaterThan(1);
   expect(probe.intersect(next).volume()).toBeLessThan(1e-3);
-  for (const deg of [5, -5]) {
+  for (const deg of [swing, -swing]) {
     const swung = next.translate([-pin[0], -pin[1], 0]).rotate([0, 0, deg]).translate([pin[0], pin[1], 0]);
     expect(m.intersect(swung).volume()).toBeLessThan(1e-3);
   }
@@ -137,6 +147,61 @@ describe("H-connector", () => {
     d.base.connectors = ends({ left: "tab", right: "socket" });
     const r = await build(d, assets);
     expect(r.warnings.filter((w) => w.startsWith("warn.connector"))).toEqual([]);
+  });
+
+  describe("joints sit on the middle of the Base", () => {
+    const u = 18 + 2 * fit.clearance + newDesign("cap").base.gap;
+    const keys = (cells: number[][]): BaseKey[] => {
+      const sq = centredOnSwitch(capOutline("square", 18, 2));
+      return cells.map(([c, r]) => ({ at: [c * u, r * u], outline: sq }));
+    };
+    const row4 = () => keys([[-1.5, 0], [-0.5, 0], [0.5, 0], [1.5, 0]]);
+    const grid = () => keys([[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5]]);
+    const mid = (a: { foot: { bounds(): { min: number[]; max: number[] } } }) => {
+      const b = a.foot.bounds();
+      return [(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2];
+    };
+    /** Left/right joints on the mid-height, top/bottom on the mid-width; one valid piece. */
+    function expectCentred(a: ReturnType<typeof multi>) {
+      const [cx, cy] = mid(a);
+      for (const j of a.joints) {
+        if (j.side === "left" || j.side === "right") expect(j.at[1]).toBeCloseTo(cy, 3);
+        else expect(j.at[0]).toBeCloseTo(cx, 3);
+      }
+      valid(a.m);
+      expect(a.m.decompose().length).toBe(1);
+    }
+
+    test("a 4-key row: top and bottom between the middle keys", () => {
+      const a = multi(row4(), { top: "tab", bottom: "socket" });
+      expectCentred(a);
+      expect(role(a.joints, "tab").at[0]).toBeCloseTo(0, 3);
+      // 85 mm wide: its corners stop the swing near ±2.5°.
+      expectMates(a, "bottom", 2);
+    });
+
+    test("a 2x2 grid: left and right on one line, top and bottom too", () => {
+      const lr = multi(grid(), { left: "tab", right: "socket" });
+      expectCentred(lr);
+      expectMates(lr, "right");
+      expectCentred(multi(grid(), { top: "tab", bottom: "socket" }));
+    });
+
+    test("a cap on two switches: top and bottom on the middle, not over a switch", () => {
+      const o = centredOnSwitch(capOutline("capsule", 40, 2));
+      const opts = newDesign("cap").base;
+      const sw = placeSwitches(o, baseFootprint([{ at: [0, 0], outline: o }], opts, fit), fit, opts, 0).at;
+      expect(sw.length).toBe(2);
+      const a = multi([{ at: [0, 0], outline: o, switches: sw }], { top: "tab", bottom: "socket" });
+      expectCentred(a);
+      expect(role(a.joints, "tab").at[0]).toBeCloseTo(0, 3);
+    });
+
+    test("a heart: left and right at its mid-height, not on the switch", () => {
+      const a = multi([{ at: [0, 0], outline: centredOnSwitch(capOutline("heart", 36.5, 2)) }], { left: "tab", right: "socket" });
+      expectCentred(a);
+      expect(Math.abs(mid(a)[1])).toBeGreaterThan(1);
+    });
   });
 
   test("the joint face counts texture dots", () => {

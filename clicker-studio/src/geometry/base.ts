@@ -69,7 +69,7 @@ function edgeY(cs: CrossSection, x: number, dir: 1 | -1): number {
 
 /** The H-connector joints of a Base. */
 export function baseJoints(keys: BaseKey[], opts: BaseOptions, fit: Fit, footprint?: CrossSection): Joint[] {
-  return connectorJoints(footprint ?? baseFootprint(keys, opts, fit), keys.flatMap(keySwitches), opts);
+  return connectorJoints(footprint ?? baseFootprint(keys, opts, fit), opts);
 }
 
 /** Support-enforcer volumes under a Base's tabs, for the slicer. */

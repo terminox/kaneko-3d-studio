@@ -157,7 +157,7 @@ const fixtures: Record<string, () => { design: Design; traced: Record<string, Tr
     return { design: d, traced: {} };
   },
   "hconn-picture": () => {
-    // Tab only on a picture Base: the connector sits at the shape's widest point.
+    // Tab only on a picture Base: the connector sits on the middle of its right side.
     const t = tracePicture(face(), { removeBackground: true, bgStrength: 70, punchHoles: false, colors: 2 });
     const d = newDesign("picture");
     d.base.connectors = { ...d.base.connectors, right: "tab" };
@@ -174,6 +174,22 @@ const fixtures: Record<string, () => { design: Design; traced: Record<string, Tr
       useCartoon: false,
     };
     return { design: d, traced: { face: t } };
+  },
+  "hconn-row4": () => {
+    // A 4-key row: the top tab and bottom socket sit between the middle keys.
+    const d = newDesign("row");
+    d.keys = [..."LOVE"].map((c) => ({ ...d.keys[0], deco: { type: "text", text: c, font: "Fredoka-700" } }));
+    d.base.connectors = { ...d.base.connectors, top: "tab", bottom: "socket" };
+    return { design: d, traced: {} };
+  },
+  "hconn-grid": () => {
+    // A 2x2 grid: left tab and right socket on one line, between the rows.
+    const d = newDesign("grid");
+    d.layout = "grid";
+    d.columns = 2;
+    d.keys = [..."ABCD"].map((c) => ({ ...d.keys[0], deco: { type: "text", text: c, font: "Fredoka-700" } }));
+    d.base.connectors = { ...d.base.connectors, left: "tab", right: "socket" };
+    return { design: d, traced: {} };
   },
   "hconn-fluted": () => {
     const d = newDesign("fluted");

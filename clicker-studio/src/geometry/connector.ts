@@ -101,19 +101,14 @@ function bandRight(foot: CrossSection, y0: number, y1: number, left = false): nu
   return left ? hb.min[0] : hb.max[0];
 }
 
-/** The axis (local y) of the +x side: through the Switch nearest it (ties: nearest the footprint's centre line). */
-function localAxis(switches: [number, number][], foot: CrossSection): number {
-  if (!switches.length) return 0;
+/** The axis (local y) of the +x side: the footprint's middle, so opposite joints share one line. */
+function localAxis(foot: CrossSection): number {
   const b = foot.bounds();
-  const cy = (b.min[1] + b.max[1]) / 2;
-  const far = Math.max(...switches.map((s) => s[0]));
-  const cands = switches.filter((s) => s[0] > far - 0.5);
-  cands.sort((p, q) => Math.abs(p[1] - cy) - Math.abs(q[1] - cy) || p[1] - q[1]);
-  return cands[0][1];
+  return (b.min[1] + b.max[1]) / 2;
 }
 
 /** The placed joints of a Base. */
-export function connectorJoints(foot: CrossSection, switches: [number, number][], opts: BaseOptions, connectors: Connectors = opts.connectors): Joint[] {
+export function connectorJoints(foot: CrossSection, opts: BaseOptions, connectors: Connectors = opts.connectors): Joint[] {
   const bump = opts.texture === "dots" ? 0.8 : 0;
   const cut = opts.texture === "none" ? 0 : opts.textureDepth;
   const out: Joint[] = [];
@@ -122,7 +117,7 @@ export function connectorJoints(foot: CrossSection, switches: [number, number][]
     if (role === "none") continue;
     const deg = ANGLE[side];
     const f = deg ? foot.rotate(-deg) : foot;
-    const ay = localAxis(switches.map((s) => rot(s, -deg)), f);
+    const ay = localAxis(f);
     const face = f.bounds().max[0] + bump;
     // Innermost wall across the pad: where a scalloped or curved wall is shallowest.
     const half = role === "tab" ? H.tabWidth / 2 : H.window / 2 + H.housingWall;

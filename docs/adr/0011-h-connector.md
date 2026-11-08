@@ -11,6 +11,8 @@ Later the same day, after trying it, the owner asked for more:
 - **Each side on its own.** Left, Right, Top and Bottom each carry nothing, a tab or a socket. This allows a socket only, a vertical chain, and corner joints. It replaced the first presets (tab + socket, tab only, two tabs) and the tab-side picker.
 - **Bases that bulge past the joint must still link.** A heart's lobes stuck out past the joint, so linked pieces would touch. The joint now extends out to the Base's outermost point instead of moving.
 
+The next day (2026-11-09) the owner saw tabs and sockets off-centre on some models, and chose to centre every joint on the middle of the Base.
+
 ## The joint
 
 It was measured from the Bubbly 3MF's Open block. No mesh is copied, because the file's licence is personal use only. The numbers live in `H` in `clicker-studio/src/geometry/connector.ts` and are not owner-tunable. z is measured from the Base bottom.
@@ -25,7 +27,7 @@ A scratch check mated a Clicker Studio Base with the real Bubbly mesh both ways 
 ## How it fits the Base
 
 - **Frame:** each joint is built facing +x and turned to its side (top is +y), so all four sides share one code path.
-- **Axis:** the joint runs through the Switch nearest that side. Ties go to the one nearest the footprint's centre line, so a Letter row's top joint is on the middle key. For a Picture, that is the widest point.
+- **Axis:** the middle of the footprint on that side: left and right joints sit at its mid-height, top and bottom joints at its mid-width. Opposite joints always share one line, so a chain runs straight, and the joints line up with the keyring loops' centre lines. On a Letter row with an even count, the top joint sits between the middle keys; on a single-key heart it sits a little above the Switch.
 - **Joint face:** the footprint's outermost point on that side, over the whole footprint. Dots add 0.8 mm. Nothing of the Base passes the face, so any two pieces, of any shape and Bubbly blocks too, keep the 2 mm gap when linked.
 - **Reaching the face:** where the wall is farther in than the face, a pad fills the gap. It also gives a flat mating face over texture and scallops.
   - A socket gets a **housing**: 15 mm wide (the 10 mm window plus 2.5 mm walls) and 7.0 mm tall, so a 1.6 mm roof bridges the window.
@@ -74,5 +76,6 @@ The tab hangs 2 mm above the bed.
 - **Own sizes, tuned to Clicker Studio's walls.** This would allow a shorter tab, farther from the pins, but it couldn't link with Bubbly blocks.
 - **Presets (tab + socket, tab only, two tabs) with a tab side.** The first version. They covered Bubbly's three variants, but not a socket only, a vertical chain or corner joints, so they were replaced by an end per side. Two sockets are allowed and warn when their tongues come out short.
 - **Moving the joint to where the Base bulges.** No extra pad, but a chain would no longer run straight through the switches, and thin or curved bulges can't hold the 15 mm housing.
+- **The joint through the Switch nearest its side** (the first two versions). It kept the tab tip in a known place relative to the pins, but rows with an even count, Grids and caps on several switches came out up to 12 mm off-centre, and a 2×2 Grid's left and right joints landed on different rows, so its chain zig-zagged. `switchClash` already treats every Switch within 10.5 mm of the joint line as dead ahead, so a centred joint is checked at least as strictly.
 - **Checking only a joined copy of the same Base for overlap** (the first version's warning). It said nothing about linking to other shapes or Bubbly blocks, and it gave no fix.
 - **Slicer auto supports, from the bed only.** This would also support textured walls and bumps. Enforcers keep support under the tab.
