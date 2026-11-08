@@ -24,7 +24,7 @@ The preview needs WebGL. For the **AI cartoon** button, copy `.env.example` to `
 | Letter row | One Keycap per character (Thai, English, 한국어, 中文, emoji), up to 10, on one Base. |
 | Grid / WASD | Keys in a row, column, grid, WASD, arrows, T or custom cells, up to 24. |
 | Picture | Upload a picture. The cap and Base follow its outline, the picture splits into 1–7 colours, and a cap border of 0–3 mm is added around it, so the cap and Base grow with the border and the picture keeps its width (0 = the picture runs to the edge; under 0.8 mm warns), and the Switch goes at the widest point of the shape. |
-| Fluted chain | One scalloped Base per key, with a small loop on each side. Link them with 6–8 mm metal jump rings. |
+| Fluted chain | One scalloped Base per key, linked with 6–8 mm metal jump rings through a small loop on each side, or with H-connectors (below). |
 | 3D model | An STL/OBJ is rotated, scaled, cut flat and fused onto a standard cap pedestal. The model must be watertight. |
 
 "Parts to print" switches between Cap + Base, Caps only, the A–Z set (26 keycaps) and Base only.
@@ -32,6 +32,15 @@ The preview needs WebGL. For the **AI cartoon** button, copy `.env.example` to `
 ## Switches under a large cap
 
 A big cap on one switch binds when pressed off-centre and lets its far edge droop, so a shared cap (Single key, Picture, 3D model) gets as many switches as its size needs, placed automatically ([ADR 0009](../docs/adr/0009-multi-switch-shared-caps.md)). The rule follows keyboards, which stabilise any key from 2u (38 mm) up: every point of the cap must lie within the **reach** (22 mm) of a switch. A 40 mm round cap keeps one switch, a 60 × 20 mm bar gets two, a 45 mm round cap three, a 50 mm square four. Positions come from the cap's shape (`src/geometry/switches.ts`): two go on the long axis, three or four balance the area, and every spot keeps the housing inside the cap wall and the pocket inside the Base, at least the **pitch** (18 mm) apart. The first switch sits where it always did; the others get a little extra stem fit so the cap never binds on print tolerance. Simple mode shows the count; Advanced mode can force 1–4 (it falls back to as many as fit and says so) and tunes reach, pitch and extra stem fit in the Fit panel. A cap that even four switches can't cover warns. Note that each extra switch adds its actuation force: two 45 g switches press at about 90 g.
+
+## H-connector
+
+Any Base can link to the next one with the joint from Justi-Fy Studio's *Modular Clicker (Bubbly)*, at Bubbly's exact sizes, so it also links with printed Bubbly blocks ([ADR 0011](../docs/adr/0011-h-connector.md)). A tab with a hole slides into the next Base's socket, and a pin on a sprung floor tongue snaps up through the hole. Joined pieces sit 2 mm apart and bend side to side.
+
+- **H-connector** (Base card): Tab + socket for every piece but the last, Tab only for the last, or Two tabs. **Tab side** picks the tab's side; the socket goes opposite. The tab's hole takes a keyring, and a keyring loop on a connector side is left out.
+- **Fluted chain → Join with: H-connector** builds the linked chain from one Design. The first piece's tab takes the keyring and the last piece has no socket.
+- To link, push the tongue down from inside the pocket (or just press the tab in), slide the tab in, and let go. Put the switch in with its pins **away from the socket**. A 5-pin switch's side posts must not point at it.
+- The tab prints 2 mm above the bed. The 3MF puts slicer support under each tab only.
 
 ## Layer heights
 

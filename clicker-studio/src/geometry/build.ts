@@ -4,7 +4,8 @@ import type { Mesh } from "@mm/pipeline/mesh.ts";
 import { K, type CrossSection, type Manifold } from "./kernel.ts";
 import { capOutline, centredOnSwitch, offset, rings as ringsCs } from "./outline.ts";
 import { buildCap, skirtExposed, type Solid } from "./cap.ts";
-import { baseFootprint, baseLevels, buildBase, keySwitches, loopCentres, type BaseKey } from "./base.ts";
+import { baseFootprint, baseJoints, baseLevels, baseSupports, buildBase, connectorSides, keySwitches, loopCentres, type BaseKey } from "./base.ts";
+import { H, holeCentre, neighbourClash, switchClash, type Joint } from "./connector.ts";
 import { placeSwitches } from "./switches.ts";
 import { ringsBounds } from "./path.ts";
 import { decorationLayers, fitLayers, flipY, outlineRings, type Assets, type Layer } from "./decoration.ts";
@@ -14,7 +15,11 @@ import { keyCells } from "./layout.ts";
 import { buildChain, chainPitch } from "./chain.ts";
 import { modelSpec } from "./model-cap.ts";
 
-export type Part = { name: string; color: string; mesh: Mesh };
+/** `role` "support": a slicer support-enforcer volume, not printed and not shown. */
+export type Part = { name: string; color: string; mesh: Mesh; role?: "support" };
+
+/** Where the preview's keychain hangs: a loop or a tab hole, the side it leaves from, and its height. */
+export type Keyring = { at: [number, number]; dir: 1 | -1; z: number };
 /** Parts that print as one piece (a cap with its inlays, or a Base). */
 export type Group = { name: string; parts: Part[] };
 
@@ -28,8 +33,8 @@ export type BuildResult = {
   switches: [number, number][];
   /** Switches under each shared cap (1 for every other kind). */
   switchesPerCap: number;
-  /** Keyring loop centres and the Base bottom z, for the preview's chain. */
-  loops: [number, number][];
+  /** Where the preview's chain hangs (a keyring loop, else a free tab hole), and the Base bottom z. */
+  keyring: Keyring | null;
   bottom: number;
   /** Picture patches, for picking in the preview (assembled frame). */
   patches: PatchInfo[];
@@ -162,6 +167,8 @@ export async function build(design: Design, assets: Assets): Promise<BuildResult
   const print: Group[] = [];
   const wantCaps = design.parts !== "base";
   const wantBase = design.parts === "cap+base" || design.parts === "base";
+  const { bottom } = baseLevels(base, fit);
+  const joints: Joint[] = [];
 
   const patches: PatchInfo[] = [];
   if (wantCaps) {
@@ -180,16 +187,22 @@ export async function build(design: Design, assets: Assets): Promise<BuildResult
   if (wantBase && design.parts !== "az-set") {
     if (design.kind === "fluted") {
       const chain = buildChain(baseKeys, design);
-      chain.forEach((m, i) => {
+      chain.forEach((link, i) => {
         const color = caps[i]?.key.baseColor ?? design.baseColor;
-        assembled.push(part({ name: `Base ${i + 1}`, color, m }, [0, 0]));
-        print.push({ name: `Base ${i + 1}`, parts: [{ name: `Base ${i + 1}`, color, mesh: toMesh(m.translate([-baseKeys[i].at[0], -baseKeys[i].at[1], 0])) }] });
+        const home = (m: Manifold) => toMesh(m.translate([-baseKeys[i].at[0], -baseKeys[i].at[1], 0]));
+        assembled.push(part({ name: `Base ${i + 1}`, color, m: link.m }, [0, 0]));
+        print.push({ name: `Base ${i + 1}`, parts: [{ name: `Base ${i + 1}`, color, mesh: home(link.m) }, ...supportParts(link.supports, color, home)] });
+        joints.push(...link.joints);
+        if (switchClash(link.joints, keySwitches(baseKeys[i]), bottom)) warnings.push("warn.connectorSwitch");
       });
     } else {
       const foot = baseFootprint(baseKeys, base, fit);
       const m = buildBase(baseKeys, base, fit, foot);
       assembled.push(part({ name: "Base", color: design.baseColor, m }, [0, 0]));
-      print.push({ name: "Base", parts: [{ name: "Base", color: design.baseColor, mesh: toMesh(m) }] });
+      print.push({ name: "Base", parts: [{ name: "Base", color: design.baseColor, mesh: toMesh(m) }, ...supportParts(baseSupports(baseKeys, base, fit, foot), design.baseColor, toMesh)] });
+      joints.push(...baseJoints(baseKeys, base, fit, foot));
+      if (neighbourClash(foot, joints, base.texture === "dots" ? 0.8 : 0)) warnings.push("warn.connectorBulge");
+      if (switchClash(joints, baseKeys.flatMap(keySwitches), bottom)) warnings.push("warn.connectorSwitch");
     }
   }
 
@@ -199,7 +212,8 @@ export async function build(design: Design, assets: Assets): Promise<BuildResult
     const room = K().CrossSection.union(baseKeys.flatMap(keySwitches).map((s) => K().CrossSection.square([fit.clipRoom, fit.clipRoom], true).translate(s)));
     if (room.subtract(inner).area() > 0.01) warnings.push("warn.pocket");
   }
-  const loops = foot && wantBase && design.kind !== "fluted" ? loopCentres(foot, base.loop, base.loopHole / 2) : [];
+  const loops = foot && wantBase && design.kind !== "fluted" ? loopCentres(foot, base.loop, base.loopHole / 2, connectorSides(base)) : [];
+  const keyring = keyringPoint(loops, joints, foot, bottom);
   if (patches.some((p) => p.h > TALL)) warnings.push("warn.tall");
   if (caps.length && wantCaps && wantBase && design.kind !== "model") {
     const rimTop = baseLevels(base, fit).wallTop;
@@ -208,11 +222,11 @@ export async function build(design: Design, assets: Assets): Promise<BuildResult
   return {
     assembled,
     print,
-    warnings,
+    warnings: [...new Set(warnings)],
     switches: wantBase || design.parts === "cap+base" ? baseKeys.flatMap(keySwitches) : [],
     switchesPerCap: caps[0]?.switches?.length ?? 1,
-    loops,
-    bottom: baseLevels(base, fit).bottom,
+    keyring,
+    bottom,
     patches,
   };
 }
@@ -231,6 +245,21 @@ function capPatches(c: CapSpec, top: number, owner: number, def: number, inlay: 
     out.push({ owner, layer, at, pins, depth, h, own: !inlay && pins.length > 0, color: l.color, paints, painted: paints.length > 0, top: top + h, rings });
   }
   return out;
+}
+
+function supportParts(volumes: Manifold[], color: string, mesh: (m: Manifold) => Mesh): Part[] {
+  return volumes.map((m, i) => ({ name: `Tab support ${i + 1}`, color, mesh: mesh(m), role: "support" as const }));
+}
+
+/** A keyring loop if there is one, else the first tab hole (a fluted chain's first link). */
+function keyringPoint(loops: [number, number][], joints: Joint[], foot: CrossSection | null, bottom: number): Keyring | null {
+  if (loops.length) {
+    const b = foot?.bounds();
+    const cx = b ? (b.min[0] + b.max[0]) / 2 : 0;
+    return { at: loops[0], dir: loops[0][0] < cx - 1 ? -1 : 1, z: bottom + 1.5 };
+  }
+  const tab = joints.find((j) => j.role === "tab");
+  return tab ? { at: holeCentre(tab), dir: tab.side === "left" ? -1 : 1, z: bottom + (H.tabZ[0] + H.tabZ[1]) / 2 } : null;
 }
 
 function part(s: Solid, at: [number, number]): Part {

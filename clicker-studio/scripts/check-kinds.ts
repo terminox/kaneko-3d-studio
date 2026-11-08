@@ -1,7 +1,7 @@
 // Builds one fixture Design per kind, exports each as a 3MF and slices it with
 // the Bambu Studio CLI. The end-to-end check that every kind prints.
 //   bun scripts/check-kinds.ts [kind ...]
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { K, loadKernel } from "../src/geometry/kernel.ts";
 import { build, packPlates, toMesh } from "../src/geometry/build.ts";
@@ -13,7 +13,8 @@ import { tracedPatches } from "../src/geometry/patches.ts";
 import { setPatchHeights } from "../src/design/heights.ts";
 import { writeBinaryStl } from "../../model-maker/src/pipeline/mesh.ts";
 import { loadTemplate } from "../../model-maker/scripts/templates.ts";
-import { checkSlice, slice } from "../../model-maker/scripts/bambu-cli.ts";
+import { checkSlice, slice, supportMoves } from "../../model-maker/scripts/bambu-cli.ts";
+import type { Plate } from "../src/geometry/build.ts";
 import { nodeAssets } from "./node-assets.ts";
 
 await loadKernel();
@@ -134,12 +135,74 @@ const fixtures: Record<string, () => { design: Design; traced: Record<string, Tr
     };
     return { design: d, traced: { bar: t } };
   },
+  hconn: () => {
+    // H-connector, tab + socket, on a ribbed single key.
+    const d = newDesign("cap");
+    d.base.connector = "open";
+    d.base.texture = "ribs";
+    return { design: d, traced: {} };
+  },
+  "hconn-picture": () => {
+    // Tab only on a picture Base: the connector sits at the shape's widest point.
+    const t = tracePicture(face(), { removeBackground: true, bgStrength: 70, punchHoles: false, colors: 2 });
+    const d = newDesign("picture");
+    d.base.connector = "close";
+    d.base.connectorSide = "right";
+    d.picture = {
+      image: "face",
+      crop: { x: 0, y: 0, w: 1, h: 1, rotate: 0 },
+      adjust: { brightness: 0, contrast: 0, saturation: 0 },
+      removeBackground: true,
+      bgStrength: 70,
+      punchHoles: false,
+      colors: 2,
+      palette: ["#F7D046", "#1E1E1E"],
+      width: 32,
+      useCartoon: false,
+    };
+    return { design: d, traced: { face: t } };
+  },
+  "hconn-fluted": () => {
+    const d = newDesign("fluted");
+    d.base.join = "connector";
+    d.keys = [..."LOVE"].map((c, i) => ({ ...d.keys[0], baseColor: ["#F4B6C8", "#9ED9D0", "#F7D046", "#C7B3E6"][i], deco: { type: "text", text: c, font: "Fredoka-700" } }));
+    return { design: d, traced: {} };
+  },
   "az-set": () => {
     const d = newDesign("cap");
     d.parts = "az-set";
     return { design: d, traced: {} };
   },
 };
+
+/**
+ * Support must print exactly where H-connector tabs ask for it: some support on
+ * every plate with a tab, every support move inside a tab's enforcer (plus the
+ * slicer's few mm of support base), and none on other plates.
+ */
+function supportProblems(plates: Plate[], sliceDir: string): string[] {
+  const margin = 5;
+  const problems: string[] = [];
+  plates.forEach((plate, i) => {
+    const file = resolve(sliceDir, `plate_${i + 1}.gcode`);
+    if (!existsSync(file)) return;
+    const moves = supportMoves(readFileSync(file, "utf8"));
+    const boxes = plate.groups.flatMap((g) => g.parts.filter((p) => p.role === "support")).map((p) => {
+      const v = p.mesh.vertices;
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (let k = 0; k < v.length; k += 3) {
+        x0 = Math.min(x0, v[k]); x1 = Math.max(x1, v[k]);
+        y0 = Math.min(y0, v[k + 1]); y1 = Math.max(y1, v[k + 1]);
+      }
+      return { x0: x0 - margin, x1: x1 + margin, y0: y0 - margin, y1: y1 + margin };
+    });
+    if (!boxes.length && moves.length) problems.push(`plate ${i + 1}: ${moves.length} support moves but no tab`);
+    if (boxes.length && !moves.length) problems.push(`plate ${i + 1}: tabs but no support printed`);
+    const stray = moves.filter(([x, y]) => !boxes.some((b) => x >= b.x0 && x <= b.x1 && y >= b.y0 && y <= b.y1));
+    if (boxes.length && stray.length) problems.push(`plate ${i + 1}: ${stray.length} support moves away from the tabs, e.g. ${stray[0].map((n) => n.toFixed(1)).join(",")}`);
+  });
+  return problems;
+}
 
 const only = process.argv.slice(2);
 mkdirSync("out/kinds", { recursive: true });
@@ -149,7 +212,7 @@ for (const [name, make] of Object.entries(fixtures)) {
   const { design, traced, expect = [] } = make();
   const r = await build(design, { ...nodeAssets(), traced });
   const switches = r.switchesPerCap > 1 ? `${r.switchesPerCap} switches, ` : "";
-  const plates = packPlates(r.print, { byColour: name === "fluted" });
+  const plates = packPlates(r.print, { byColour: name.includes("fluted") });
   const { data } = platesTo3mf(name, plates, loadTemplate());
   const file = resolve(`out/kinds/${name}.3mf`);
   writeFileSync(file, data);
@@ -158,6 +221,7 @@ for (const [name, make] of Object.entries(fixtures)) {
     ...r.warnings.filter((w) => !expect.includes(w)).map((w) => `warning ${w}`),
     ...expect.filter((w) => !r.warnings.includes(w)).map((w) => `missing warning ${w}`),
     ...checkSlice(result, { plates: plates.length, filamentsPerPlate: plates.map((p) => new Set(p.groups.flatMap((g) => g.parts.map((x) => x.color.toUpperCase()))).size) }),
+    ...supportProblems(plates, resolve(`out/kinds/${name}-slice`)),
   ];
   const p = result?.sliced_plates?.[0];
   console.log(`${name.padEnd(8)} ${problems.length ? "FAIL" : "ok  "} ${switches}${p ? `${(p.total_predication / 60).toFixed(0)} min, ${p.filaments.map((f) => `${f.total_used_g.toFixed(1)} g`).join(" + ")}` : ""} ${problems.join("; ")}`);

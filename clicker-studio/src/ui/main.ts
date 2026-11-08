@@ -188,8 +188,8 @@ function paintStatus() {
 function showModel(frame = false) {
   const b = state.build;
   if (!b) return;
-  const parts = state.view === "print" ? (b.plates[0]?.groups.flatMap((g) => g.parts) ?? []) : b.assembled;
-  viewport.show({ parts, switches: b.switches, loops: b.loops, bottom: b.bottom, chain: state.design.chain, printLayout: state.view === "print" }, frame);
+  const parts = state.view === "print" ? (b.plates[0]?.groups.flatMap((g) => g.parts).filter((p) => p.role !== "support") ?? []) : b.assembled;
+  viewport.show({ parts, switches: b.switches, keyring: b.keyring, bottom: b.bottom, chain: state.design.chain, printLayout: state.view === "print" }, frame);
   const s = viewport.size();
   const plates = b.plates.length > 1 ? ` · ${b.plates.length} ${t("status.plates")}` : "";
   dims.textContent = s ? `${s.x.toFixed(0)} × ${s.y.toFixed(0)} × ${s.z.toFixed(1)} mm${plates}` : "";

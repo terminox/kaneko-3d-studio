@@ -2,14 +2,14 @@
 // cut-away, switch ghosts and a keychain prop. Z is up, as in Bambu Studio.
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import type { Part } from "../geometry/build.ts";
+import type { Keyring, Part } from "../geometry/build.ts";
 import type { Ring } from "../geometry/path.ts";
 import { pointInRings, signedArea } from "../design/heights.ts";
 
 export type Scene = {
   parts: Part[];
   switches: [number, number][];
-  loops: [number, number][];
+  keyring: Keyring | null;
   bottom: number;
   chain: "ball" | "cord" | "none";
   /** True for the print layout (parts already on the bed). */
@@ -147,7 +147,7 @@ export class Viewport {
     this.clip.constant = 0;
     if (!s.printLayout) {
       if (this.showSwitch) for (const at of s.switches) this.extras.add(this.switchGhost(at));
-      if (s.chain !== "none") for (const at of s.loops.slice(0, 1)) this.extras.add(this.chain(at, s.bottom, s.chain));
+      if (s.chain !== "none" && s.keyring) this.extras.add(this.chain(s.keyring, s.chain));
     }
     const placed = new THREE.Box3().setFromObject(this.model);
     const extent = placed.getSize(new THREE.Vector3()).length();
@@ -211,8 +211,8 @@ export class Viewport {
     return g;
   }
 
-  /** A short keychain hanging from the loop: ball chain or cord. */
-  private chain(at: [number, number], bottom: number, kind: "ball" | "cord"): THREE.Group {
+  /** A short keychain hanging from the loop or tab hole: ball chain or cord. */
+  private chain({ at, dir, z }: Keyring, kind: "ball" | "cord"): THREE.Group {
     const g = new THREE.Group();
     const pts: THREE.Vector3[] = [];
     const len = 70;
@@ -220,7 +220,7 @@ export class Viewport {
       const t = i / 60;
       // A loop that drops below and to the side of the Clicker.
       const a = t * Math.PI * 2;
-      pts.push(new THREE.Vector3(at[0] + 14 + Math.sin(a) * 6, at[1] - Math.sin(a / 2) * len * 0.5, bottom + 1.5 + (1 - Math.cos(a)) * 1.5));
+      pts.push(new THREE.Vector3(at[0] + dir * 14 + Math.sin(a) * 6, at[1] - Math.sin(a / 2) * len * 0.5, z + (1 - Math.cos(a)) * 1.5));
     }
     const curve = new THREE.CatmullRomCurve3(pts, true);
     if (kind === "cord") {

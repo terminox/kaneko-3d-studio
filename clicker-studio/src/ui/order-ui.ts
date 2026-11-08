@@ -108,6 +108,9 @@ function describe(d: Design): string {
   if (d.kind === "picture" && d.picture) bits.push(`${d.picture.width} mm · ${d.picture.colors} ${t("sheet.colours")}${d.picture.useCartoon ? " · AI" : ""}`);
   if (keys.length && d.kind !== "picture") bits.push(`“${keys.join(" ")}”`);
   if (d.base.texture !== "none") bits.push(t(`texture.${d.base.texture}` as StringKey));
+  if (d.kind === "fluted" && d.base.join === "connector") bits.push(t("join.connector"));
+  if (d.kind !== "fluted" && d.base.connector !== "none")
+    bits.push(`${t("join.connector")}: ${t(`connector.${d.base.connector}` as StringKey)}${d.base.connector === "open" || d.base.connector === "close" ? ` ${t(`connector.${d.base.connectorSide}` as StringKey)}` : ""}`);
   if (d.chain !== "none") bits.push(t(`chain.${d.chain}` as StringKey));
   return bits.join(" · ");
 }

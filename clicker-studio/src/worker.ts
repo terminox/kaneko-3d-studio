@@ -1,7 +1,7 @@
 // Geometry worker: builds Designs with manifold-3d off the main thread.
 import wasmUrl from "manifold-3d/manifold.wasm?url";
 import { loadKernel } from "./geometry/kernel.ts";
-import { build, packPlates, type Group, type Part } from "./geometry/build.ts";
+import { build, packPlates, type Group, type Keyring, type Part } from "./geometry/build.ts";
 import { parseIconSvg, type Assets, type Traced } from "./geometry/decoration.ts";
 import { platesTo3mf } from "./export/bambu.ts";
 import type { Design } from "./design/types.ts";
@@ -28,7 +28,7 @@ export type BuildReply = {
   warnings: string[];
   switches: [number, number][];
   switchesPerCap: number;
-  loops: [number, number][];
+  keyring: Keyring | null;
   bottom: number;
   patches: PatchInfo[];
   ms: number;
@@ -83,7 +83,7 @@ async function runBuilds() {
         warnings: r.warnings,
         switches: r.switches,
         switchesPerCap: r.switchesPerCap,
-        loops: r.loops,
+        keyring: r.keyring,
         bottom: r.bottom,
         patches: r.patches,
         ms: performance.now() - t,

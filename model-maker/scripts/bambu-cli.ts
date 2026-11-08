@@ -41,3 +41,22 @@ export function checkSlice(result: SliceResult | null, expect: { plates: number;
   });
   return problems;
 }
+
+/** XY points of every extruding move printed as support, from a sliced plate's G-code. */
+export function supportMoves(gcode: string): [number, number][] {
+  const out: [number, number][] = [];
+  let inSupport = false;
+  let x = 0, y = 0;
+  for (const line of gcode.split("\n")) {
+    if (line.startsWith("; FEATURE:")) {
+      inSupport = /^; FEATURE: Support/.test(line);
+      continue;
+    }
+    if (!/^G[123] /.test(line)) continue;
+    const mx = / X(-?[\d.]+)/.exec(line), my = / Y(-?[\d.]+)/.exec(line), me = / E(-?[\d.]+)/.exec(line);
+    if (mx) x = +mx[1];
+    if (my) y = +my[1];
+    if (inSupport && (mx || my) && me && +me[1] > 0) out.push([x, y]);
+  }
+  return out;
+}

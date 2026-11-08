@@ -19,7 +19,8 @@ export type ProjectTemplate = {
   filament_keys: string[];
 };
 
-export type PartInput = { name: string; color: string; mesh: Mesh };
+/** `subtype` "support_enforcer": a volume where the slicer must put support. It prints nothing itself. */
+export type PartInput = { name: string; color: string; mesh: Mesh; subtype?: "support_enforcer" };
 export type PlateInput = {
   name: string;
   parts: PartInput[];
@@ -27,6 +28,8 @@ export type PlateInput = {
   bedPositioned?: boolean;
   /** Where this plate's prime tower goes (bed coordinates, its lower-left corner). */
   wipeTower?: [number, number];
+  /** Per-object slicer settings for this plate's object (e.g. enable_support). */
+  settings?: Record<string, string>;
 };
 
 export type Bambu3mfInput = {
@@ -46,7 +49,7 @@ export function writeBambu3mf({ title, plates, template, bedType = "Textured PEI
 
   // Project filaments: one per distinct colour, in first-use order.
   const filaments: string[] = [];
-  for (const plate of used) for (const part of plate.parts) if (!filaments.includes(part.color)) filaments.push(part.color);
+  for (const plate of used) for (const part of plate.parts) if (!part.subtype && !filaments.includes(part.color)) filaments.push(part.color);
   if (filaments.length > 4) warnings.push(`${filaments.length} colours: the AMS Lite holds 4, so some need manual swaps`);
 
   const cols = Math.ceil(Math.sqrt(used.length));
@@ -57,7 +60,9 @@ export function writeBambu3mf({ title, plates, template, bedType = "Textured PEI
   const platesConfig: string[] = [];
 
   used.forEach((plate, k) => {
-    const parts = plate.parts.filter((p) => p.mesh.triangles.length > 0);
+    // Model parts first: Bambu expects them before modifiers, and the object's extruder comes from the first.
+    const nonEmpty = plate.parts.filter((p) => p.mesh.triangles.length > 0);
+    const parts = [...nonEmpty.filter((p) => !p.subtype), ...nonEmpty.filter((p) => p.subtype)];
     const box = boundingBox(parts.map((p) => p.mesh))!;
     const size = [box.max[0] - box.min[0], box.max[1] - box.min[1], box.max[2] - box.min[2]];
     if (size[0] > BED || size[1] > BED) throw new Error(`Plate ${k + 1} is ${size[0].toFixed(1)} × ${size[1].toFixed(1)} mm, larger than the ${BED} mm bed`);
@@ -90,12 +95,15 @@ export function writeBambu3mf({ title, plates, template, bedType = "Textured PEI
       `  <object id="${objectId}">\n` +
         `    <metadata key="name" value="${xml(objectName)}"/>\n` +
         `    <metadata key="extruder" value="${filaments.indexOf(parts[0].color) + 1}"/>\n` +
+        Object.entries(plate.settings ?? {})
+          .map(([key, value]) => `    <metadata key="${xml(key)}" value="${xml(value)}"/>\n`)
+          .join("") +
         parts
           .map(
             (part, i) =>
-              `    <part id="${partIds[i]}" subtype="normal_part">\n` +
+              `    <part id="${partIds[i]}" subtype="${part.subtype ?? "normal_part"}">\n` +
               `      <metadata key="name" value="${xml(part.name)}"/>\n` +
-              `      <metadata key="extruder" value="${filaments.indexOf(part.color) + 1}"/>\n` +
+              (part.subtype ? "" : `      <metadata key="extruder" value="${filaments.indexOf(part.color) + 1}"/>\n`) +
               `    </part>\n`,
           )
           .join("") +

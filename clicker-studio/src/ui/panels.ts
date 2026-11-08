@@ -1,6 +1,6 @@
 // The side panels. Each control edits state.design, then calls changed()
 // (geometry only) or rerender() (panels change shape too).
-import type { CapShape, Decoration, Design, Key, Kind, LayerHeights, Layout, Loop, PartsMode, Texture } from "../design/types.ts";
+import type { CapShape, Connector, Decoration, Design, Key, Kind, LayerHeights, Layout, Loop, PartsMode, Texture } from "../design/types.ts";
 import { DEFAULT_FIT, type Fit } from "../geometry/switch.ts";
 import { layoutKeyCount } from "../geometry/layout.ts";
 import { SYMBOLS } from "../geometry/symbols.ts";
@@ -1087,7 +1087,51 @@ export function baseCard(): HTMLElement | null {
         changed();
       }),
     );
+  if (d().kind === "fluted")
+    add(card,
+      field(
+        t("join.label"),
+        segmented(
+          (["rings", "connector"] as const).map((v) => ({ value: v, label: t(`join.${v}` as StringKey) })),
+          b.join,
+          (v) => {
+            b.join = v;
+            rerender();
+          },
+        ),
+        b.join === "connector" ? t("join.hint") : undefined,
+      ),
+    );
   if (d().kind !== "fluted") {
+    add(card,
+      field(
+        t("connector.label"),
+        segmented(
+          (["none", "open", "close", "double"] as Connector[]).map((v) => ({ value: v, label: t(`connector.${v}` as StringKey) })),
+          b.connector,
+          (v) => {
+            b.connector = v;
+            rerender();
+          },
+          "wrap small",
+        ),
+        b.connector !== "none" ? t("connector.hint") : undefined,
+      ),
+    );
+    if (b.connector === "open" || b.connector === "close")
+      add(card,
+        field(
+          t("connector.side"),
+          segmented(
+            (["left", "right"] as const).map((v) => ({ value: v, label: t(`connector.${v}` as StringKey) })),
+            b.connectorSide,
+            (v) => {
+              b.connectorSide = v;
+              rerender();
+            },
+          ),
+        ),
+      );
     add(card, 
       field(
         t("loop.label"),

@@ -24,6 +24,12 @@ export type Texture = "none" | "ribs" | "sawtooth" | "grooves" | "diamond" | "wa
 /** Keyring loop sides. "both" is left + right (kept for saved designs); "topBottom" is top + bottom. */
 export type Loop = "none" | "left" | "top" | "right" | "bottom" | "both" | "topBottom";
 
+/**
+ * H-connector (Bubbly-compatible hinge joint, ADR 0011): open = tab + socket on
+ * opposite sides, close = tab only (the last link), double = a tab on both sides.
+ */
+export type Connector = "none" | "open" | "close" | "double";
+
 /** Which parts get exported. */
 export type PartsMode = "cap+base" | "caps" | "base" | "az-set";
 
@@ -96,6 +102,11 @@ export type BaseOptions = {
   loopThickness: number;
   /** Space between neighbouring keys in a Block Clicker. */
   gap: number;
+  connector: Connector;
+  /** The tab's side for "open" and "close"; the socket goes opposite. */
+  connectorSide: "left" | "right";
+  /** Fluted chain only: link the Bases with metal jump rings or H-connectors. */
+  join: "rings" | "connector";
 };
 
 export type PictureOptions = {
@@ -197,6 +208,9 @@ export function newDesign(kind: Kind = "cap"): Design {
       loopHole: 3.5,
       loopThickness: 3,
       gap: 1.6,
+      connector: "none",
+      connectorSide: "left",
+      join: "rings",
     },
     baseColor: "#FFFFFF",
     picture: null,

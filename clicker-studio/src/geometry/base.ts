@@ -6,6 +6,7 @@ import { circle, coverWith, offset, roundConcave } from "./outline.ts";
 import { capHeights, type Fit } from "./switch.ts";
 import { slab } from "./cap.ts";
 import { applyTexture } from "./texture.ts";
+import { connectorJoints, connectorRoles, pinSolid, slitCut, socketCut, supportVolume, tabSolid, tongueSlab, type Joint, type Side } from "./connector.ts";
 
 /** One cap on the Base: its outline at `at`, and its Switch centres relative to `at` (default one, at the cap origin). */
 export type BaseKey = { at: [number, number]; outline: CrossSection; switches?: [number, number][] };
@@ -31,8 +32,13 @@ export function baseFootprint(keys: BaseKey[], opts: BaseOptions, fit: Fit): Cro
   return out;
 }
 
-/** Keyring loop centres for a footprint. */
-export function loopCentres(foot: CrossSection, loop: Loop, holeR: number): [number, number][] {
+/** Sides an H-connector takes, so no keyring loop goes there. */
+export function connectorSides(opts: BaseOptions): Set<Side> {
+  return new Set(Object.keys(connectorRoles(opts.connector, opts.connectorSide)) as Side[]);
+}
+
+/** Keyring loop centres for a footprint. Sides in `taken` (an H-connector's) get none. */
+export function loopCentres(foot: CrossSection, loop: Loop, holeR: number, taken: Set<Side> = new Set()): [number, number][] {
   if (loop === "none") return [];
   const b = foot.bounds();
   const cy = (b.min[1] + b.max[1]) / 2;
@@ -40,8 +46,8 @@ export function loopCentres(foot: CrossSection, loop: Loop, holeR: number): [num
   const d = holeR + 0.9;
   const pts: [number, number][] = [];
   // Place the loop where the footprint actually is on that side: probe the edge at the centre line.
-  if (loop === "left" || loop === "both") pts.push([edgeX(foot, cy, -1) - d, cy]);
-  if (loop === "right" || loop === "both") pts.push([edgeX(foot, cy, 1) + d, cy]);
+  if ((loop === "left" || loop === "both") && !taken.has("left")) pts.push([edgeX(foot, cy, -1) - d, cy]);
+  if ((loop === "right" || loop === "both") && !taken.has("right")) pts.push([edgeX(foot, cy, 1) + d, cy]);
   if (loop === "top" || loop === "topBottom") pts.push([cx, edgeY(foot, cx, 1) + d]);
   if (loop === "bottom" || loop === "topBottom") pts.push([cx, edgeY(foot, cx, -1) - d]);
   return pts;
@@ -61,6 +67,21 @@ function edgeY(cs: CrossSection, x: number, dir: 1 | -1): number {
   return dir > 0 ? hit.max[1] : hit.min[1];
 }
 
+/** The H-connector joints of a Base. */
+export function baseJoints(keys: BaseKey[], opts: BaseOptions, fit: Fit, footprint?: CrossSection): Joint[] {
+  if (opts.connector === "none") return [];
+  return connectorJoints(footprint ?? baseFootprint(keys, opts, fit), keys.flatMap(keySwitches), opts);
+}
+
+/** Support-enforcer volumes under a Base's tabs, for the slicer. */
+export function baseSupports(keys: BaseKey[], opts: BaseOptions, fit: Fit, footprint?: CrossSection): Manifold[] {
+  const foot = footprint ?? baseFootprint(keys, opts, fit);
+  const { bottom } = baseLevels(opts, fit);
+  return baseJoints(keys, opts, fit, foot)
+    .filter((j) => j.role === "tab")
+    .map((j) => supportVolume(j, bottom, foot));
+}
+
 /** A Base with a skirt room per key and a Switch Pocket per Switch. */
 export function buildBase(keys: BaseKey[], opts: BaseOptions, fit: Fit, footprint?: CrossSection): Manifold {
   const { CrossSection, Manifold } = K();
@@ -71,8 +92,13 @@ export function buildBase(keys: BaseKey[], opts: BaseOptions, fit: Fit, footprin
 
   // Keyring loops sit flush with the bottom.
   const holeR = opts.loopHole / 2;
-  const loops = loopCentres(foot, opts.loop, holeR);
+  const loops = loopCentres(foot, opts.loop, holeR, connectorSides(opts));
   for (const c of loops) body = body.add(slab(circle(holeR + 2.4, c), bottom, bottom + opts.loopThickness));
+
+  const joints = baseJoints(keys, opts, fit, foot);
+  const tabs = joints.filter((j) => j.role === "tab");
+  const sockets = joints.filter((j) => j.role === "socket");
+  if (tabs.length) body = body.add(Manifold.union(tabs.map((j) => tabSolid(j, bottom))));
 
   const cuts: Manifold[] = [];
   for (const k of keys) {
@@ -86,5 +112,12 @@ export function buildBase(keys: BaseKey[], opts: BaseOptions, fit: Fit, footprin
     }
   }
   for (const c of loops) cuts.push(slab(circle(holeR, c), bottom - 1, wallTop + 1));
-  return body.subtract(Manifold.union(cuts));
+  for (const j of sockets) cuts.push(socketCut(j, bottom));
+  body = body.subtract(Manifold.union(cuts));
+  if (!sockets.length) return body;
+
+  // Socket: the tongue's floor (clipped to the footprint) and its pin, then the slits that free it.
+  const footSlab = slab(foot, bottom - 1, bottom + 10);
+  body = body.add(Manifold.union(sockets.flatMap((j) => [tongueSlab(j, bottom).intersect(footSlab), pinSolid(j, bottom)])));
+  return body.subtract(Manifold.union(sockets.map((j) => slitCut(j, bottom, opts.floor))));
 }
