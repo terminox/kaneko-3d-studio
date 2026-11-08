@@ -138,16 +138,29 @@ const fixtures: Record<string, () => { design: Design; traced: Record<string, Tr
   hconn: () => {
     // H-connector, tab + socket, on a ribbed single key.
     const d = newDesign("cap");
-    d.base.connector = "open";
+    d.base.connectors = { ...d.base.connectors, left: "tab", right: "socket" };
     d.base.texture = "ribs";
+    return { design: d, traced: {} };
+  },
+  "hconn-heart": () => {
+    // A heart Base bulges past the joint: the socket housing and tab arm reach out to its lobes.
+    const d = newDesign("cap");
+    d.cap.shape = "heart";
+    d.cap.size = 36.5;
+    d.base.connectors = { ...d.base.connectors, left: "tab", right: "socket" };
+    return { design: d, traced: {} };
+  },
+  "hconn-topbottom": () => {
+    // Tab on top, socket on the bottom.
+    const d = newDesign("cap");
+    d.base.connectors = { ...d.base.connectors, top: "tab", bottom: "socket" };
     return { design: d, traced: {} };
   },
   "hconn-picture": () => {
     // Tab only on a picture Base: the connector sits at the shape's widest point.
     const t = tracePicture(face(), { removeBackground: true, bgStrength: 70, punchHoles: false, colors: 2 });
     const d = newDesign("picture");
-    d.base.connector = "close";
-    d.base.connectorSide = "right";
+    d.base.connectors = { ...d.base.connectors, right: "tab" };
     d.picture = {
       image: "face",
       crop: { x: 0, y: 0, w: 1, h: 1, rotate: 0 },

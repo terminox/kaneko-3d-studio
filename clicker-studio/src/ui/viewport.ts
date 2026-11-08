@@ -218,9 +218,13 @@ export class Viewport {
     const len = 70;
     for (let i = 0; i <= 60; i++) {
       const t = i / 60;
-      // A loop that drops below and to the side of the Clicker.
+      // A loop that leaves the Clicker along `dir`: from a side it drops below (-y),
+      // from the top or bottom it runs straight out.
       const a = t * Math.PI * 2;
-      pts.push(new THREE.Vector3(at[0] + dir * 14 + Math.sin(a) * 6, at[1] - Math.sin(a / 2) * len * 0.5, z + (1 - Math.cos(a)) * 1.5));
+      const [dx, dy] = dir;
+      const x = at[0] + dx * 14 + Math.sin(a) * 6;
+      const y = at[1] + dy * 14 + (dy || -1) * Math.sin(a / 2) * len * 0.5;
+      pts.push(new THREE.Vector3(x, y, z + (1 - Math.cos(a)) * 1.5));
     }
     const curve = new THREE.CatmullRomCurve3(pts, true);
     if (kind === "cord") {

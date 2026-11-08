@@ -5,7 +5,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 import { loadKernel } from "../src/geometry/kernel.ts";
 import { build, packPlates, type Group } from "../src/geometry/build.ts";
-import { newDesign, type Design, type Kind } from "../src/design/types.ts";
+import { newDesign, upgradeBase, type Design, type Kind } from "../src/design/types.ts";
 import { platesTo3mf } from "../src/export/bambu.ts";
 import { loadTemplate } from "../../model-maker/scripts/templates.ts";
 import { checkSlice, slice } from "../../model-maker/scripts/bambu-cli.ts";
@@ -33,7 +33,7 @@ for (let i = 0; i < args.length; i++) {
     // Fill in fields added since the file was saved, as the app's `upgrade` does.
     const saved = JSON.parse(readFileSync(resolve(a), "utf8")) as Design;
     const fresh = newDesign(saved.kind ?? "cap");
-    designs.push({ ...fresh, ...saved, cap: { ...fresh.cap, ...saved.cap }, base: { ...fresh.base, ...saved.base }, fit: { ...fresh.fit, ...saved.fit } });
+    designs.push({ ...fresh, ...saved, cap: { ...fresh.cap, ...saved.cap }, base: upgradeBase(fresh.base, saved.base ?? {}), fit: { ...fresh.fit, ...saved.fit } });
   }
 }
 if (quick) designs.push(quick);

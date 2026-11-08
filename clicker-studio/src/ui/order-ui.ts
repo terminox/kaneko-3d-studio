@@ -1,5 +1,6 @@
 // Order actions: add/edit/remove items, save/load, order sheet, export.
 import type { Design } from "../design/types.ts";
+import { SIDES } from "../design/connectors.ts";
 import { newOrder, orderTotal, switchCount, type Order } from "../design/order.ts";
 import { CURRENCY, designColours, price } from "../design/price.ts";
 import { filamentName } from "../design/palette.ts";
@@ -109,8 +110,9 @@ function describe(d: Design): string {
   if (keys.length && d.kind !== "picture") bits.push(`“${keys.join(" ")}”`);
   if (d.base.texture !== "none") bits.push(t(`texture.${d.base.texture}` as StringKey));
   if (d.kind === "fluted" && d.base.join === "connector") bits.push(t("join.connector"));
-  if (d.kind !== "fluted" && d.base.connector !== "none")
-    bits.push(`${t("join.connector")}: ${t(`connector.${d.base.connector}` as StringKey)}${d.base.connector === "open" || d.base.connector === "close" ? ` ${t(`connector.${d.base.connectorSide}` as StringKey)}` : ""}`);
+  const ends = SIDES.filter((s) => d.base.connectors[s] !== "none");
+  if (d.kind !== "fluted" && ends.length)
+    bits.push(`${t("join.connector")}: ${ends.map((s) => `${t(`connector.${d.base.connectors[s]}` as StringKey)} ${t(`connector.${s}` as StringKey)}`).join(", ")}`);
   if (d.chain !== "none") bits.push(t(`chain.${d.chain}` as StringKey));
   return bits.join(" · ");
 }

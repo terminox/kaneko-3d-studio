@@ -1,6 +1,6 @@
 // The side panels. Each control edits state.design, then calls changed()
 // (geometry only) or rerender() (panels change shape too).
-import type { CapShape, Connector, Decoration, Design, Key, Kind, LayerHeights, Layout, Loop, PartsMode, Texture } from "../design/types.ts";
+import type { CapShape, Decoration, End, Design, Key, Kind, LayerHeights, Layout, Loop, PartsMode, Texture } from "../design/types.ts";
 import { DEFAULT_FIT, type Fit } from "../geometry/switch.ts";
 import { layoutKeyCount } from "../geometry/layout.ts";
 import { SYMBOLS } from "../geometry/symbols.ts";
@@ -13,6 +13,7 @@ import { changed, rerender, selectedPatches, selectionChanged, state, switchKind
 import { cartoonize, cropDialog, loadImage, retracePicture, retraceKeyImages } from "./picture-ui.ts";
 import { MAX_HEIGHT, TALL, colourHeight, emptyHeights, flatten, makeItPop, remapHeights, resetPatches, setColourHeight, setPatchHeights } from "../design/heights.ts";
 import { orderActions } from "./order-ui.ts";
+import { SIDES, pinSide } from "../design/connectors.ts";
 
 const adv = () => state.mode === "advanced";
 
@@ -1103,35 +1104,32 @@ export function baseCard(): HTMLElement | null {
       ),
     );
   if (d().kind !== "fluted") {
-    add(card,
-      field(
-        t("connector.label"),
-        segmented(
-          (["none", "open", "close", "double"] as Connector[]).map((v) => ({ value: v, label: t(`connector.${v}` as StringKey) })),
-          b.connector,
-          (v) => {
-            b.connector = v;
-            rerender();
-          },
-          "wrap small",
-        ),
-        b.connector !== "none" ? t("connector.hint") : undefined,
-      ),
-    );
-    if (b.connector === "open" || b.connector === "close")
-      add(card,
-        field(
-          t("connector.side"),
+    // H-connector: each side carries nothing, a tab or a socket.
+    const pins = pinSide(b.connectors);
+    const hasSocket = SIDES.some((side) => b.connectors[side] === "socket");
+    const hasTab = SIDES.some((side) => b.connectors[side] === "tab");
+    const notes = [
+      hasTab ? t("connector.hint") : "",
+      hasSocket ? (pins ? t("connector.pins").replace("{side}", t(`connector.${pins}` as StringKey)) : t("connector.noPins")) : "",
+    ].filter(Boolean);
+    const hint = notes.length ? notes.join(" ") : undefined;
+    const rows = h("div", { class: "connector-sides" });
+    for (const side of SIDES)
+      rows.append(
+        h("div", { class: "connector-side" },
+          h("span", { text: t(`connector.${side}` as StringKey) }),
           segmented(
-            (["left", "right"] as const).map((v) => ({ value: v, label: t(`connector.${v}` as StringKey) })),
-            b.connectorSide,
+            (["none", "tab", "socket"] as End[]).map((v) => ({ value: v, label: v === "none" ? "—" : t(`connector.${v}` as StringKey) })),
+            b.connectors[side],
             (v) => {
-              b.connectorSide = v;
+              b.connectors = { ...b.connectors, [side]: v };
               rerender();
             },
+            "small",
           ),
         ),
       );
+    add(card, field(t("connector.label"), rows, hint));
     add(card, 
       field(
         t("loop.label"),

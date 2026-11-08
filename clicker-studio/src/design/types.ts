@@ -24,11 +24,13 @@ export type Texture = "none" | "ribs" | "sawtooth" | "grooves" | "diamond" | "wa
 /** Keyring loop sides. "both" is left + right (kept for saved designs); "topBottom" is top + bottom. */
 export type Loop = "none" | "left" | "top" | "right" | "bottom" | "both" | "topBottom";
 
-/**
- * H-connector (Bubbly-compatible hinge joint, ADR 0011): open = tab + socket on
- * opposite sides, close = tab only (the last link), double = a tab on both sides.
- */
-export type Connector = "none" | "open" | "close" | "double";
+/** A Base side, seen from above: top is +y. */
+export type Side = "left" | "right" | "top" | "bottom";
+
+/** What an H-connector side carries (Bubbly-compatible hinge joint, ADR 0011). */
+export type End = "none" | "tab" | "socket";
+
+export type Connectors = Record<Side, End>;
 
 /** Which parts get exported. */
 export type PartsMode = "cap+base" | "caps" | "base" | "az-set";
@@ -102,9 +104,8 @@ export type BaseOptions = {
   loopThickness: number;
   /** Space between neighbouring keys in a Block Clicker. */
   gap: number;
-  connector: Connector;
-  /** The tab's side for "open" and "close"; the socket goes opposite. */
-  connectorSide: "left" | "right";
+  /** H-connector end on each side. */
+  connectors: Connectors;
   /** Fluted chain only: link the Bases with metal jump rings or H-connectors. */
   join: "rings" | "connector";
 };
@@ -208,8 +209,7 @@ export function newDesign(kind: Kind = "cap"): Design {
       loopHole: 3.5,
       loopThickness: 3,
       gap: 1.6,
-      connector: "none",
-      connectorSide: "left",
+      connectors: { left: "none", right: "none", top: "none", bottom: "none" },
       join: "rings",
     },
     baseColor: "#FFFFFF",
@@ -219,4 +219,21 @@ export function newDesign(kind: Kind = "cap"): Design {
     fit: { ...DEFAULT_FIT },
     files: {},
   };
+}
+
+/**
+ * Base options of a saved Design, with fields added since filled in. Designs
+ * saved with the first H-connector (presets "open" / "close" / "double" and a
+ * tab side) get the same ends per side.
+ */
+export function upgradeBase(fresh: BaseOptions, saved: Partial<BaseOptions> & { connector?: string; connectorSide?: "left" | "right" }): BaseOptions {
+  const { connector, connectorSide, ...rest } = saved;
+  const out: BaseOptions = { ...fresh, ...rest, connectors: { ...fresh.connectors, ...rest.connectors } };
+  if (!rest.connectors && connector && connector !== "none") {
+    const tab = connectorSide ?? "left";
+    const other = tab === "left" ? "right" : "left";
+    if (connector === "double") out.connectors = { ...out.connectors, left: "tab", right: "tab" };
+    else out.connectors = { ...out.connectors, [tab]: "tab", ...(connector === "open" ? { [other]: "socket" } : {}) };
+  }
+  return out;
 }

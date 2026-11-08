@@ -37,9 +37,11 @@ A big cap on one switch binds when pressed off-centre and lets its far edge droo
 
 Any Base can link to the next one with the joint from Justi-Fy Studio's *Modular Clicker (Bubbly)*, at Bubbly's exact sizes, so it also links with printed Bubbly blocks ([ADR 0011](../docs/adr/0011-h-connector.md)). A tab with a hole slides into the next Base's socket, and a pin on a sprung floor tongue snaps up through the hole. Joined pieces sit 2 mm apart and bend side to side.
 
-- **H-connector** (Base card): Tab + socket for every piece but the last, Tab only for the last, or Two tabs. **Tab side** picks the tab's side; the socket goes opposite. The tab's hole takes a keyring, and a keyring loop on a connector side is left out.
+- **H-connector** (Base card): ← Left, Right →, ↑ Top and ↓ Bottom each take nothing, a **Tab** or a **Socket**. Tab + socket on opposite sides makes a chain piece, a tab alone ends a chain, and a tab on one side with a socket on the next side turns a corner. The tab's hole takes a keyring, and a keyring loop on a connector side is left out.
 - **Fluted chain → Join with: H-connector** builds the linked chain from one Design. The first piece's tab takes the keyring and the last piece has no socket.
-- To link, push the tongue down from inside the pocket (or just press the tab in), slide the tab in, and let go. Put the switch in with its pins **away from the socket**. A 5-pin switch's side posts must not point at it.
+- Each joint sits at the Base's outermost point on its side. Where a shape bulges past the wall there (a heart's lobes), a low housing carries the socket out to it and the tab gets an arm on the bed, so any two pieces link.
+- To link, push the tongue down from inside the pocket (or just press the tab in), slide the tab in, and let go. Put the switch in with its pins toward the side the hint names, away from the sockets. A 5-pin switch's side posts must not point at a socket.
+- One socket per Base is the safe choice. Two sockets on a small Base meet under the switch, so their tongues come out too short to bend, and the Base warns.
 - The tab prints 2 mm above the bed. The 3MF puts slicer support under each tab only.
 
 ## Layer heights

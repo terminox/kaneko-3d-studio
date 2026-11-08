@@ -1,6 +1,6 @@
 // App state: the Design being edited, the Order, and view settings. Changes
 // call `changed()` (rebuild geometry) or `rerender()` (rebuild the panels too).
-import { newDesign, DEFAULT_KEY, type Design, type Kind } from "../design/types.ts";
+import { newDesign, upgradeBase, DEFAULT_KEY, type Design, type Kind } from "../design/types.ts";
 import { newOrder, type Order } from "../design/order.ts";
 import type { Traced } from "../geometry/decoration.ts";
 import type { BuildReply } from "../worker.ts";
@@ -81,7 +81,7 @@ export function upgrade(d: Design): Design {
     ...fresh,
     ...d,
     cap: { ...fresh.cap, ...d.cap },
-    base: { ...fresh.base, ...d.base },
+    base: upgradeBase(fresh.base, d.base ?? {}),
     fit: { ...fresh.fit, ...d.fit },
     keys: (d.keys?.length ? d.keys : fresh.keys).map((k) => ({ ...DEFAULT_KEY, ...k })),
     files: d.files ?? {},

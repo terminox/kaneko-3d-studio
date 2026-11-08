@@ -5,7 +5,7 @@ import { K, type CrossSection, type Manifold } from "./kernel.ts";
 import { capOutline, centredOnSwitch, offset, rings as ringsCs } from "./outline.ts";
 import { buildCap, skirtExposed, type Solid } from "./cap.ts";
 import { baseFootprint, baseJoints, baseLevels, baseSupports, buildBase, connectorSides, keySwitches, loopCentres, type BaseKey } from "./base.ts";
-import { H, holeCentre, neighbourClash, switchClash, type Joint } from "./connector.ts";
+import { H, holeCentre, shortTongue, sideDir, switchClash, type Joint } from "./connector.ts";
 import { placeSwitches } from "./switches.ts";
 import { ringsBounds } from "./path.ts";
 import { decorationLayers, fitLayers, flipY, outlineRings, type Assets, type Layer } from "./decoration.ts";
@@ -18,8 +18,8 @@ import { modelSpec } from "./model-cap.ts";
 /** `role` "support": a slicer support-enforcer volume, not printed and not shown. */
 export type Part = { name: string; color: string; mesh: Mesh; role?: "support" };
 
-/** Where the preview's keychain hangs: a loop or a tab hole, the side it leaves from, and its height. */
-export type Keyring = { at: [number, number]; dir: 1 | -1; z: number };
+/** Where the preview's keychain hangs: a loop or a tab hole, the way it leaves the Base (unit vector), and its height. */
+export type Keyring = { at: [number, number]; dir: [number, number]; z: number };
 /** Parts that print as one piece (a cap with its inlays, or a Base). */
 export type Group = { name: string; parts: Part[] };
 
@@ -193,7 +193,8 @@ export async function build(design: Design, assets: Assets): Promise<BuildResult
         assembled.push(part({ name: `Base ${i + 1}`, color, m: link.m }, [0, 0]));
         print.push({ name: `Base ${i + 1}`, parts: [{ name: `Base ${i + 1}`, color, mesh: home(link.m) }, ...supportParts(link.supports, color, home)] });
         joints.push(...link.joints);
-        if (switchClash(link.joints, keySwitches(baseKeys[i]), bottom)) warnings.push("warn.connectorSwitch");
+        if (switchClash(link.joints, keySwitches(baseKeys[i]), bottom, link.connectors)) warnings.push("warn.connectorSwitch");
+        if (shortTongue(link.joints)) warnings.push("warn.connectorTongue");
       });
     } else {
       const foot = baseFootprint(baseKeys, base, fit);
@@ -201,8 +202,8 @@ export async function build(design: Design, assets: Assets): Promise<BuildResult
       assembled.push(part({ name: "Base", color: design.baseColor, m }, [0, 0]));
       print.push({ name: "Base", parts: [{ name: "Base", color: design.baseColor, mesh: toMesh(m) }, ...supportParts(baseSupports(baseKeys, base, fit, foot), design.baseColor, toMesh)] });
       joints.push(...baseJoints(baseKeys, base, fit, foot));
-      if (neighbourClash(foot, joints, base.texture === "dots" ? 0.8 : 0)) warnings.push("warn.connectorBulge");
-      if (switchClash(joints, baseKeys.flatMap(keySwitches), bottom)) warnings.push("warn.connectorSwitch");
+      if (switchClash(joints, baseKeys.flatMap(keySwitches), bottom, base.connectors)) warnings.push("warn.connectorSwitch");
+      if (shortTongue(joints)) warnings.push("warn.connectorTongue");
     }
   }
 
@@ -255,11 +256,13 @@ function supportParts(volumes: Manifold[], color: string, mesh: (m: Manifold) =>
 function keyringPoint(loops: [number, number][], joints: Joint[], foot: CrossSection | null, bottom: number): Keyring | null {
   if (loops.length) {
     const b = foot?.bounds();
-    const cx = b ? (b.min[0] + b.max[0]) / 2 : 0;
-    return { at: loops[0], dir: loops[0][0] < cx - 1 ? -1 : 1, z: bottom + 1.5 };
+    const [cx, cy] = b ? [(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2] : [0, 0];
+    const [x, y] = loops[0];
+    const dir: [number, number] = Math.abs(x - cx) > 1 ? [Math.sign(x - cx), 0] : [0, Math.sign(y - cy) || -1];
+    return { at: loops[0], dir, z: bottom + 1.5 };
   }
   const tab = joints.find((j) => j.role === "tab");
-  return tab ? { at: holeCentre(tab), dir: tab.side === "left" ? -1 : 1, z: bottom + (H.tabZ[0] + H.tabZ[1]) / 2 } : null;
+  return tab ? { at: holeCentre(tab), dir: sideDir(tab.side), z: bottom + (H.tabZ[0] + H.tabZ[1]) / 2 } : null;
 }
 
 function part(s: Solid, at: [number, number]): Part {

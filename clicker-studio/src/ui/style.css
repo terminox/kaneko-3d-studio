@@ -77,6 +77,10 @@ button.ai { background: #0fb36b; color: #fff; border-color: transparent; font-we
 .seg.wrap button.on { border-color: var(--accent); background: var(--soft); }
 .seg.shapes button { flex: 1 1 30%; justify-content: center; }
 .seg .ico { font-size: 13px; }
+.connector-sides { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; align-items: center; }
+.connector-side { display: contents; }
+.connector-side > span { font-size: 13px; white-space: nowrap; }
+.connector-side .seg button { flex: 1 1 0; justify-content: center; }
 
 /* Layout */
 .layout { flex: 1; display: grid; grid-template-columns: 340px 1fr 340px; min-height: 0; }
