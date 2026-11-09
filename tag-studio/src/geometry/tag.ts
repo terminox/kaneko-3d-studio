@@ -136,22 +136,55 @@ function edge(cs: CrossSection, along: "x" | "y", at: number, dir: 1 | -1): numb
   return dir > 0 ? hb.max[i] : hb.min[i];
 }
 
-/** The keyring loop's centre, just outside the plate on the chosen side. */
-function loopCentre(plate: CrossSection, design: TagDesign): [number, number] | null {
+/**
+ * Like `edge`, but when the probe misses (a gap between letters, a concave
+ * shape) it looks at the columns within 12 mm and takes the one whose edge
+ * reaches furthest out, with a small penalty for distance. So the loop lands
+ * on the top of the B, not in the notch between its bowls or over the gap.
+ */
+function edgeNear(cs: CrossSection, along: "x" | "y", at: number, dir: 1 | -1, lo: number, hi: number): { at: number; edge: number } | null {
+  const direct = edge(cs, along, at, dir);
+  if (direct !== null) return { at, edge: direct };
+  let best: { at: number; edge: number; score: number } | null = null;
+  for (let step = 0.5; step <= 12; step += 0.5)
+    for (const a of [at - step, at + step]) {
+      if (a < lo || a > hi) continue;
+      const e = edge(cs, along, a, dir);
+      if (e === null) continue;
+      const score = dir * e - 0.25 * step;
+      if (!best || score > best.score) best = { at: a, edge: e, score };
+    }
+  return best;
+}
+
+/** The keyring loop's centre, just outside `shape` on the chosen side, so the loop's wall overlaps it. */
+function loopCentre(shape: CrossSection, design: TagDesign): [number, number] | null {
   const { side, offset: shift, hole } = design.loop;
   if (side === "none") return null;
-  const b = plate.bounds();
-  // Centre the hole just outside the plate, so the loop's wall overlaps it.
+  const b = shape.bounds();
   const d = hole / 2 + 0.9;
   if (side === "top") {
     const x = Math.min(b.max[0] - 1, Math.max(b.min[0] + 1, (b.min[0] + b.max[0]) / 2 + shift));
-    const y = edge(plate, "y", x, 1) ?? b.max[1];
-    return [x, y + d];
+    const hit = edgeNear(shape, "y", x, 1, b.min[0] + 1, b.max[0] - 1);
+    return hit ? [hit.at, hit.edge + d] : [x, b.max[1] + d];
   }
   const y = Math.min(b.max[1] - 1, Math.max(b.min[1] + 1, (b.min[1] + b.max[1]) / 2 + shift));
   const dir = side === "left" ? -1 : 1;
-  const x = edge(plate, "x", y, dir) ?? (dir < 0 ? b.min[0] : b.max[0]);
-  return [x + dir * d, y];
+  const hit = edgeNear(shape, "x", y, dir, b.min[1] + 1, b.max[1] - 1);
+  return hit ? [hit.edge + dir * d, hit.at] : [(dir < 0 ? b.min[0] : b.max[0]) + dir * d, y];
+}
+
+/**
+ * A keyring loop that grips the artwork directly (one layer, no border): the
+ * ring plus the hull of the ring and the artwork within 1.5 mm of it, which
+ * fills the gap between them into a solid tab even where the edge is a thin
+ * spike. The hole is cut out; the artwork keeps its own colour.
+ */
+function loopTab(art: CrossSection, at: [number, number], design: TagDesign): CrossSection {
+  const R = design.loop.hole / 2 + design.loop.wall;
+  const ring = circle(R, at);
+  const near = art.intersect(circle(R + 1.5, at));
+  return ring.add(near).hull().subtract(circle(design.loop.hole / 2, at));
 }
 
 /** Builds one Name Tag for `name` ("" = picture only). */
@@ -183,13 +216,23 @@ export async function buildTag(design: TagDesign, name: string, assets: TagAsset
     if (!cs.isEmpty()) raised.push({ ...l, cs });
   }
 
-  let plate = plateOutline(covered!.simplify(0.05), design, warnings);
-  const loop = loopCentre(plate, design);
-  let hole: CrossSection | null = null;
-  if (loop) {
-    plate = plate.add(circle(design.loop.hole / 2 + design.loop.wall, loop));
-    hole = circle(design.loop.hole / 2, loop);
-    plate = plate.subtract(hole);
+  // One layer with no border: no plate at all. The loop grips the artwork,
+  // and whatever doesn't touch is a loose piece (warned, not joined).
+  const flat = design.plate.layers === 1, bare = flat && design.plate.border === 0;
+  let plate: CrossSection, loop: [number, number] | null, hole: CrossSection | null = null;
+  if (bare) {
+    loop = loopCentre(covered!, design);
+    plate = loop ? loopTab(covered!, loop, design) : covered!.subtract(covered!);
+    if (loop) hole = circle(design.loop.hole / 2, loop);
+    if (covered!.add(plate).decompose().length > 1) warnings.push("warn.pieces");
+  } else {
+    plate = plateOutline(covered!.simplify(0.05), design, warnings);
+    loop = loopCentre(plate, design);
+    if (loop) {
+      plate = plate.add(circle(design.loop.hole / 2 + design.loop.wall, loop));
+      hole = circle(design.loop.hole / 2, loop);
+      plate = plate.subtract(hole);
+    }
   }
 
   // One part per colour; artwork in the plate's colour fuses into the plate.
@@ -197,7 +240,7 @@ export async function buildTag(design: TagDesign, name: string, assets: TagAsset
   // the name and rings at the Raised height. One layer: everything runs from
   // the bed to T, and the plate colour fills only what the artwork leaves.
   // Areas of one colour and height extrude together.
-  const T = design.plate.thickness, relief = design.plate.relief, flat = design.plate.layers === 1;
+  const T = design.plate.thickness, relief = design.plate.relief;
   const levels = new Map<string, { color: string; byH: Map<number, Layer[]> }>();
   const patches: PatchInfo[] = [];
   for (const l of raised) {
@@ -237,7 +280,7 @@ export async function buildTag(design: TagDesign, name: string, assets: TagAsset
   byColour.get(design.colours.plate.toUpperCase())!.unshift(base);
   if (patches.some((p) => p.h > TALL)) warnings.push("warn.tall");
 
-  // A flat tag with no border, no loop and nothing apart has no plate colour at all.
+  // A flat tag with no border and no loop has no plate colour at all.
   const label = name.trim() || "Tag";
   const parts: Group["parts"] = [];
   for (const [i, [color, ms]] of [...byColour].entries()) {

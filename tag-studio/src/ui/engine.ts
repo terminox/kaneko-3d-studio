@@ -21,6 +21,10 @@ worker.onmessage = (e: MessageEvent<WorkerReply>) => {
   if (r.id === latestBuild) onBuild(r.type === "error" ? r : (r as BuildReply));
 };
 
+// A crash inside the WASM kernel kills the worker without a reply: say so
+// instead of leaving "Building…" on screen forever.
+worker.onerror = (e) => onBuild({ type: "error", message: e.message || "the geometry worker crashed" });
+
 export function onBuilt(fn: typeof onBuild) {
   onBuild = fn;
 }

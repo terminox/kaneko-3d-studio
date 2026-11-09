@@ -359,7 +359,7 @@ export function nameCard(): HTMLElement {
         )
       : null,
     d().picture.image
-      ? slider("name.gap", d().gap, 0, 15, 0.5, "mm", (v) => {
+      ? slider("name.gap", d().gap, -15, 15, 0.5, "mm", (v) => {
           d().gap = v;
           changed();
         })
@@ -400,13 +400,17 @@ export function plateCard(): HTMLElement {
           changed();
         }),
     slider("plate.border", pl.border, 0, 8, 0.25, "mm", (v) => {
+      const wasBare = pl.border === 0;
       pl.border = v;
-      changed();
+      if (flat && wasBare !== (v === 0)) rerender();
+      else changed();
     }),
-    toggle("plate.fillHoles", pl.fillHoles, (v) => {
-      pl.fillHoles = v;
-      changed();
-    }, "plate.fillHolesHint"),
+    flat && pl.border === 0
+      ? null
+      : toggle("plate.fillHoles", pl.fillHoles, (v) => {
+          pl.fillHoles = v;
+          changed();
+        }, "plate.fillHolesHint"),
   );
 }
 
@@ -446,7 +450,7 @@ export function ringsCard(): HTMLElement {
 
 /* ---------- Colours ---------- */
 
-/** The filament colours a Design uses, plate first. A flat tag with no border and no loop may still use the plate colour for joins, which only the build knows. */
+/** The filament colours a Design uses, plate first. With one layer and no border, the plate colour is only the loop. */
 export function designColours(x: TagDesign): string[] {
   const out = x.plate.layers === 1 && x.plate.border === 0 && x.loop.side === "none" ? [] : [x.colours.plate];
   if (tagNames(x).some(Boolean)) out.push(x.colours.name);
@@ -470,7 +474,7 @@ export function colourCard(): HTMLElement {
   return section(
     "card.colours",
     field(t("colour.pairs"), pairs, t("colour.pairsHint")),
-    swatchField(d().plate.layers === 1 ? "colour.frame" : "colour.plate", d().colours.plate, (hex) => (d().colours.plate = hex)),
+    swatchField(d().plate.layers === 1 ? (d().plate.border === 0 ? "colour.loop" : "colour.frame") : "colour.plate", d().colours.plate, (hex) => (d().colours.plate = hex)),
     swatchField("colour.name", d().colours.name, (hex) => (d().colours.name = hex)),
     h(
       "div",

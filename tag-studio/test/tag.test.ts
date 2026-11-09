@@ -218,18 +218,69 @@ test("a one-layer tag is a flat cut-out: every colour from the bed to the thickn
   expect(r.loop).not.toBeNull();
 });
 
-test("one layer with no border and no loop: a touching picture uses no plate colour, letters get joins", async () => {
-  const { design, assets } = withFace(2);
-  design.plate = { ...design.plate, layers: 1, border: 0, fillHoles: false };
-  design.loop.side = "none";
-  const pic = await buildTag(design, "", assets);
-  expect(pic.group.parts.map((p) => p.color).sort()).toEqual(["#1E1E1E", "#F7D046"]);
-  expect(pic.group.parts[0].name).toBe("Tag #F7D046");
+const pieces = (parts: { mesh: Mesh }[]) => K().Manifold.union(parts.map((p) => manifold(p.mesh))).decompose().length;
 
-  const named = await buildTag(design, "Miyu", assets);
-  expect(named.group.parts.map((p) => p.color)).toContain("#FFFFFF");
-  const solids = named.group.parts.map((p) => manifold(p.mesh));
-  expect(K().Manifold.union(solids).decompose().length).toBe(1);
+test("one layer, no border, no loop: the picture alone, in its own colours only", async () => {
+  const { design, assets } = withFace(2);
+  design.plate = { ...design.plate, layers: 1, border: 0 };
+  design.loop.side = "none";
+  const r = await buildTag(design, "", assets);
+  expect(r.group.parts.map((p) => p.color).sort()).toEqual(["#1E1E1E", "#F7D046"]);
+  expect(r.group.parts[0].name).toBe("Tag #F7D046");
+  expect(r.warnings).toEqual([]);
+  expect(r.loop).toBeNull();
+});
+
+test("one layer, no border: the loop grips the picture on every side and the hole goes through", async () => {
+  const { design, assets } = withFace(2);
+  design.plate = { ...design.plate, layers: 1, border: 0 };
+  for (const side of ["top", "left", "right"] as const) {
+    design.loop.side = side;
+    const r = await buildTag(design, "", assets);
+    expect(r.warnings).toEqual([]);
+    // Loop (white), face, eyes: one solid piece together.
+    expect(r.group.parts.map((p) => p.color).sort()).toEqual(["#1E1E1E", "#F7D046", "#FFFFFF"]);
+    expect(pieces(r.group.parts)).toBe(1);
+    const loop = manifold(r.group.parts.find((p) => p.color === "#FFFFFF")!.mesh);
+    const face = manifold(r.group.parts.find((p) => p.color === "#F7D046")!.mesh);
+    expect(loop.intersect(face).volume()).toBeLessThan(0.01);
+    const [x, y] = r.loop!;
+    const probe = K().Manifold.cylinder(10, design.loop.hole / 2 - 0.2, design.loop.hole / 2 - 0.2, 24).translate([x, y, -1]);
+    expect(loop.add(face).intersect(probe).volume()).toBeLessThan(0.01);
+    const b = box(r.group.parts[0].mesh);
+    expect(b.minZ).toBeCloseTo(0, 3);
+    expect(b.maxZ).toBeCloseTo(design.plate.thickness, 3);
+  }
+});
+
+test("one layer, no border: loose letters warn, a name laid over the picture holds together", async () => {
+  const { design, assets } = withFace(2);
+  design.plate = { ...design.plate, layers: 1, border: 0 };
+  const apart = await buildTag(design, "Miyu", assets);
+  expect(apart.warnings).toEqual(["warn.pieces"]);
+  expect(pieces(apart.group.parts)).toBeGreaterThan(1);
+
+  design.gap = -8;
+  const over = await buildTag(design, "Miyu", assets);
+  expect(over.warnings).toEqual([]);
+  expect(pieces(over.group.parts)).toBe(1);
+  // The name sits on top of the face, not the other way round.
+  const nameBox = box(over.group.parts.find((p) => p.color === design.colours.name)!.mesh);
+  expect(nameBox.maxY).toBeGreaterThan(-20);
+});
+
+test("one layer, no border: a loop over the gap between letters lands on top of a letter", async () => {
+  const design = newTagDesign();
+  design.plate = { ...design.plate, layers: 1, border: 0 };
+  design.spacing = 1.5;
+  const r = await buildTag(design, "B o", { font: nodeFont, traced: {} });
+  // B, o, and the loop on top of the taller B: two loose pieces, not three.
+  expect(r.warnings).toEqual(["warn.pieces"]);
+  expect(pieces(r.group.parts)).toBe(2);
+  const [x, y] = r.loop!;
+  const name = box(r.group.parts.find((p) => p.color === design.colours.name)!.mesh);
+  expect(x).toBeLessThan(0);
+  expect(y).toBeGreaterThan(name.maxY);
 });
 
 test("a saved Design without layers loads as two layers", () => {

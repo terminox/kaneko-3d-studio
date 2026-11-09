@@ -83,7 +83,7 @@ const S = {
   "name.weight": ["ความหนาเส้น (1 = ตามฟอนต์)", "Stroke weight (1 = as drawn)"],
   "name.spacing": ["ระยะห่างตัวอักษร", "Letter spacing"],
   "name.position": ["ตำแหน่งชื่อ", "Name position"],
-  "name.gap": ["ระยะห่างจากรูป", "Gap from the picture"],
+  "name.gap": ["ระยะห่างจากรูป (ติดลบ = ซ้อนรูป)", "Gap from the picture (below 0 overlaps it)"],
   "pos.below": ["ใต้รูป", "Below"],
   "pos.above": ["เหนือรูป", "Above"],
   "pos.left": ["ซ้าย", "Left"],
@@ -92,7 +92,7 @@ const S = {
   "plate.layers": ["จำนวนชั้น", "Layers"],
   "plate.two": ["2 ชั้น: แผ่นป้าย + ลายนูน", "2: plate + raised artwork"],
   "plate.one": ["1 ชั้น: ตัดตามลาย ไม่มีแผ่น", "1: flat cut-out, no plate"],
-  "plate.layersHint": ["1 ชั้น = ทุกสีหนาเท่ากันตั้งแต่พื้นถึงความหนาป้าย เรียงข้างกัน · ขอบกลายเป็นกรอบเรียบสีแผ่นป้ายที่ต่อชิ้นและรับห่วง · ความสูงลายนูนไม่มีผล", "One layer: every colour runs from the bed to the tag thickness, side by side. The border becomes a flat frame in the plate colour that joins the pieces and carries the loop. Heights don't apply."],
+  "plate.layersHint": ["1 ชั้น = ทุกสีหนาเท่ากันตั้งแต่พื้นถึงความหนาป้าย เรียงข้างกัน · ขอบ > 0 = กรอบเรียบสีแผ่นป้ายที่ต่อชิ้นและรับห่วง · ขอบ 0 = ไม่มีกรอบเลย ห่วงเกาะที่ตัวรูป · ความสูงลายนูนไม่มีผล", "One layer: every colour runs from the bed to the tag thickness, side by side. Border above 0: a flat frame in the plate colour joins the pieces and carries the loop. Border 0: no frame at all, and the loop grips the picture itself. Heights don't apply."],
   "plate.thickness": ["ความหนาแผ่น", "Plate thickness"],
   "plate.thicknessFlat": ["ความหนาป้าย", "Tag thickness"],
   "plate.relief": ["ความสูงลายนูน", "Raised height"],
@@ -109,6 +109,7 @@ const S = {
 
   "colour.plate": ["สีแผ่นป้าย", "Plate colour"],
   "colour.frame": ["สีขอบและห่วง", "Border & loop colour"],
+  "colour.loop": ["สีห่วง", "Loop colour"],
   "colour.name": ["สีชื่อ", "Name colour"],
   "colour.pairs": ["คู่สีพร้อมใช้", "Colour pairs"],
   "colour.pairsHint": ["แตะ = แผ่นป้ายสีแรก ชื่อสีหลัง", "Tap: the plate takes the first colour, the name the second"],
@@ -139,6 +140,7 @@ const S = {
 
   "warn.empty": ["ยังไม่มีรูปหรือชื่อ: อัปรูปหรือพิมพ์ชื่อ", "No picture or name yet: upload a picture or type a name"],
   "warn.apart": ["รูปกับชื่ออยู่ห่างกันมาก แผ่นป้ายเลยต่อกันเป็นทรงกว้าง ลองลดระยะห่าง", "The picture and name are far apart, so the plate was joined into a wide shape. Try a smaller gap."],
+  "warn.pieces": ["ป้ายแยกเป็นหลายชิ้นหลวม ๆ: ขยับชื่อให้ซ้อนรูป (ระยะห่างติดลบ) ลดระยะห่างตัวอักษร หรือเพิ่มขอบ", "The tag is in several loose pieces: move the name over the picture (a negative gap), tighten the letter spacing, or add a border."],
   "warn.tall": ["มีชิ้นสูงเกิน 4 มม.: ส่วนที่บางอาจหักหรือโยกตอนพิมพ์", "Some patches stand over 4 mm: thin ones can snap or wobble while printing."],
   "warn.over4": ["เกิน 4 สี: AMS Lite ใส่ได้ 4 ม้วน ต้องเปลี่ยนม้วนเอง", "Over 4 colours: the AMS Lite holds 4 spools, so some need a manual swap"],
 } as const satisfies Record<string, readonly [string, string]>;
