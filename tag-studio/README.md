@@ -26,7 +26,7 @@ The preview needs WebGL. For the **AI cartoon** button, copy `.env.example` to `
 | Colours | Plate and name colours, colour pairs, and the filament count (warns past 4, the AMS Lite limit) |
 | Outline rings | 0–2 sticker-style bands around the artwork, each with its own colour |
 | Plate | Layers (2: plate + raised artwork, or 1: a flat cut-out), thickness, raised height, border, fill holes |
-| Keyring loop | Top, left, right or none; slide along the edge; hole and wall size |
+| Keyring loop | Top, left, right or none; its own thickness; slide along the edge; hole and wall size |
 
 Colours come from `../clicker-studio/filaments.json`. Artwork in the plate's colour fuses into the plate, so it doesn't cost a filament. The print profile is Model Maker's, as in Clicker Studio.
 
@@ -35,6 +35,8 @@ Colours come from `../clicker-studio/filaments.json`. Artwork in the plate's col
 **Layer heights** ([ADR 0007](../docs/adr/0007-per-patch-layer-heights.md)) work as in Clicker Studio. Each picture colour gets a height (0–8 mm above the plate; 0 is flush). Click a patch in the "This tag" preview to give it its own height, and Shift-click to pick several. Make it pop and Flatten work as there. The name and rings keep the Raised height.
 
 **One layer** ([ADR 0012](../docs/adr/0012-one-layer-tags.md)): with Layers set to 1 there is no plate. Every colour runs from the bed to the tag thickness, side by side, with a flat top. A border above 0 mm is a flat frame in the plate colour, which also joins letters that don't touch and carries the keyring loop. At 0 mm there is no frame at all: the loop grips the picture (or a letter) directly, and pieces that don't touch stay loose, with a warning. Lay the name over the picture with a negative gap, or tighten the letter spacing, to make one piece. Raised height and Layer heights don't apply; part colours do.
+
+**Loop thickness** ([ADR 0014](../docs/adr/0014-loop-thickness.md)): the loop's height off the bed is its own setting, so changing the tag's thickness leaves the loop alone and the other way round. Only the part of the ring outside the tag takes the loop's thickness. Where the ring overlaps the tag, the tag keeps its own thickness and its top stays flat.
 
 **Part colours** ([ADR 0010](../docs/adr/0010-per-patch-colours.md)) work as in Clicker Studio. Click or tap a patch in the "This tag" preview and choose a filament in the bar over it. Only that patch changes, on every tag.
 

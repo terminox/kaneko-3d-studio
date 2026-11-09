@@ -506,6 +506,10 @@ export function loopCard(): HTMLElement {
   );
   if (l.side === "none") return card;
   return add(card,
+    slider("loop.thickness", l.thickness, 1, 10, 0.2, "mm", (v) => {
+      l.thickness = v;
+      changed();
+    }),
     slider("loop.offset", l.offset, -40, 40, 0.5, "mm", (v) => {
       l.offset = v;
       changed();

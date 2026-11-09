@@ -44,6 +44,8 @@ export type TagDesign = {
     offset: number;
     hole: number;
     wall: number;
+    /** Height of the loop's own part off the bed, mm, separate from the tag's thickness. */
+    thickness: number;
   };
   /** Embedded images as data URLs, by id (`<id>:cartoon` for the AI version). */
   files: Record<string, string>;
@@ -75,7 +77,7 @@ export function newTagDesign(): TagDesign {
     plate: { layers: 2, thickness: 3, relief: 1.2, border: 2.5, fillHoles: true },
     colours: { plate: "#FFFFFF", name: "#2F5FB3" },
     rings: { count: 0, width: 1.5, colors: ["#FFFFFF", "#1E1E1E"] },
-    loop: { side: "top", offset: 0, hole: 4, wall: 2.5 },
+    loop: { side: "top", offset: 0, hole: 4, wall: 2.5, thickness: 3 },
     files: {},
   };
 }
@@ -90,7 +92,8 @@ export function upgradeTag(d: Partial<TagDesign>): TagDesign {
     plate: { ...fresh.plate, ...d.plate },
     colours: { ...fresh.colours, ...d.colours },
     rings: { ...fresh.rings, ...d.rings },
-    loop: { ...fresh.loop, ...d.loop },
+    // Saved before the loop had its own thickness: it was as thick as the plate.
+    loop: { ...fresh.loop, thickness: d.plate?.thickness ?? fresh.plate.thickness, ...d.loop },
     names: Array.isArray(d.names) ? d.names : fresh.names,
     files: d.files ?? {},
   } as TagDesign;

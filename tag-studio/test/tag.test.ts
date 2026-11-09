@@ -326,3 +326,81 @@ test("a photo-sized picture: hundreds of patches build in well under a second ea
     for (let j = i + 1; j < solids.length; j++) expect(solids[i].intersect(solids[j]).volume()).toBeLessThan(0.01);
   expect(pieces(r.group.parts)).toBe(1);
 });
+
+/** How high the plate-colour part stands at (x, y): the top of a thin column through it, or -1 if there's nothing there. */
+function topAt(mesh: Mesh, x: number, y: number): number {
+  const col = manifold(mesh).intersect(K().Manifold.cube([0.6, 0.6, 50], true).translate([x, y, 0]));
+  return col.isEmpty() ? -1 : col.boundingBox().max[2];
+}
+
+/** For a top loop: a point on the ring outside the tag, and one on the tag just under the ring. */
+function loopProbes(r: { loop: [number, number] | null }, design: ReturnType<typeof newTagDesign>) {
+  const [x, y] = r.loop!;
+  const { hole, wall } = design.loop;
+  return { outside: [x, y + hole / 2 + wall / 2] as const, onTag: [x, y - hole / 2 - 0.9 - 1] as const };
+}
+
+test("the loop has its own thickness: thinner or taller than the tag, only its part outside the tag changes", async () => {
+  const { design, assets } = withFace(2);
+  for (const [T, L] of [[4, 2], [3, 5]]) {
+    design.plate.thickness = T;
+    design.loop.thickness = L;
+    const r = await buildTag(design, "Miyu", assets);
+    expect(r.warnings).toEqual([]);
+    const plate = r.group.parts[0].mesh;
+    const { outside, onTag } = loopProbes(r, design);
+    expect(topAt(plate, ...outside)).toBeCloseTo(L, 3);
+    expect(topAt(plate, ...onTag)).toBeCloseTo(T, 3);
+    expect(box(plate).minZ).toBeCloseTo(0, 3);
+    const solids = r.group.parts.map((p) => manifold(p.mesh));
+    for (const s of solids) expect(s.status()).toBe("NoError");
+    expect(solids[0].decompose().length).toBe(1);
+    for (let i = 0; i < solids.length; i++)
+      for (let j = i + 1; j < solids.length; j++) expect(solids[i].intersect(solids[j]).volume()).toBeLessThan(0.01);
+  }
+});
+
+test("the tag's thickness leaves the loop alone, and the loop's leaves the tag alone", async () => {
+  const { design, assets } = withFace(1);
+  design.loop.thickness = 3;
+  const loopTop = async () => {
+    const r = await buildTag(design, "Bo", assets);
+    const { outside, onTag } = loopProbes(r, design);
+    return { loop: topAt(r.group.parts[0].mesh, ...outside), tag: topAt(r.group.parts[0].mesh, ...onTag) };
+  };
+  design.plate.thickness = 2;
+  expect((await loopTop()).loop).toBeCloseTo(3, 3);
+  design.plate.thickness = 5;
+  expect((await loopTop()).loop).toBeCloseTo(3, 3);
+  design.loop.thickness = 1.6;
+  expect((await loopTop()).tag).toBeCloseTo(5, 3);
+});
+
+test("one layer: the loop keeps its own thickness, with a frame and gripping the picture", async () => {
+  for (const border of [2.5, 0]) {
+    const { design, assets } = withFace(2);
+    design.plate = { ...design.plate, layers: 1, border, thickness: 3 };
+    for (const L of [1.6, 5]) {
+      design.loop.thickness = L;
+      const r = await buildTag(design, "", assets);
+      expect(r.warnings).toEqual([]);
+      const plate = r.group.parts.find((p) => p.color === design.colours.plate)!.mesh;
+      const { outside } = loopProbes(r, design);
+      expect(topAt(plate, ...outside)).toBeCloseTo(L, 3);
+      const solids = r.group.parts.map((p) => manifold(p.mesh));
+      for (const s of solids) expect(s.status()).toBe("NoError");
+      for (let i = 0; i < solids.length; i++)
+        for (let j = i + 1; j < solids.length; j++) expect(solids[i].intersect(solids[j]).volume()).toBeLessThan(0.01);
+      expect(pieces(r.group.parts)).toBe(1);
+      // The picture stays at the tag's thickness.
+      expect(box(r.group.parts.find((p) => p.color === "#F7D046")!.mesh).maxZ).toBeCloseTo(3, 3);
+    }
+  }
+});
+
+test("a saved Design without a loop thickness keeps its loop as thick as its plate", () => {
+  expect(newTagDesign().loop.thickness).toBe(3);
+  const d = upgradeTag({ plate: { layers: 2, thickness: 4, relief: 1.2, border: 2.5, fillHoles: true }, loop: { side: "top", offset: 0, hole: 4, wall: 2.5 } as never });
+  expect(d.loop.thickness).toBe(4);
+  expect(upgradeTag({}).loop.thickness).toBe(3);
+});

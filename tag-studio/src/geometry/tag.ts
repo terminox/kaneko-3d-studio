@@ -2,8 +2,9 @@
 // the name, with the artwork raised on top, one part per colour, and a keyring
 // loop. With one layer the artwork is a flat cut-out instead: every colour
 // runs from the bed to the full thickness, and the plate colour is left as the
-// border frame, the joins and the loop. Built flat on the bed (z = 0), face up.
-// All sizes in mm.
+// border frame, the joins and the loop. The loop's own part (what lies outside
+// the tag) has its own thickness; the tag keeps its thickness up to its edge.
+// Built flat on the bed (z = 0), face up. All sizes in mm.
 import type { FontSource } from "@cs/text/shape.ts";
 import { textRings } from "@cs/text/shape.ts";
 import { K, type CrossSection, type Manifold } from "@cs/geometry/kernel.ts";
@@ -245,11 +246,15 @@ export async function buildTag(design: TagDesign, name: string, assets: TagAsset
   // One layer with no border: no plate at all. The loop grips the artwork,
   // and whatever doesn't touch is a loose piece (warned, not joined).
   const flat = design.plate.layers === 1, bare = flat && design.plate.border === 0;
-  let plate: CrossSection, loop: [number, number] | null, hole: CrossSection | null = null;
+  // `loopOnly` is the part of the loop outside the tag, which stands at the loop's own thickness.
+  let plate: CrossSection, loop: [number, number] | null, hole: CrossSection | null = null, loopOnly: CrossSection | null = null;
   if (bare) {
     loop = loopCentre(covered, design);
     plate = loop ? loopTab(covered, loop, design) : covered.subtract(covered);
-    if (loop) hole = circle(design.loop.hole / 2, loop);
+    if (loop) {
+      hole = circle(design.loop.hole / 2, loop);
+      loopOnly = withoutSlivers(plate.subtract(covered));
+    }
     // Each piece has one outer contour (counter-clockwise). Counting them
     // stands in for decompose(), which overflows a worker's stack on a photo.
     const outers = (covered.add(plate).toPolygons() as [number, number][][]).filter((r) => signedArea(r) > 0);
@@ -258,9 +263,10 @@ export async function buildTag(design: TagDesign, name: string, assets: TagAsset
     plate = plateOutline(covered.simplify(0.05), design, warnings);
     loop = loopCentre(plate, design);
     if (loop) {
-      plate = plate.add(circle(design.loop.hole / 2 + design.loop.wall, loop));
+      const ring = circle(design.loop.hole / 2 + design.loop.wall, loop);
       hole = circle(design.loop.hole / 2, loop);
-      plate = plate.subtract(hole);
+      loopOnly = ring.subtract(plate).subtract(hole);
+      plate = plate.add(ring).subtract(hole);
     }
   }
 
@@ -317,11 +323,14 @@ export async function buildTag(design: TagDesign, name: string, assets: TagAsset
         put(g.color, slab(cs, T - FLUSH_DEPTH, T));
       }
     }
-  const base = flat
+  let base = flat
     ? slab(withoutSlivers(cut.length ? plate.subtract(CrossSection.union(cut)) : plate), 0, T)
     : flush.length
       ? slab(plate, 0, T).subtract(slab(CrossSection.union(flush), T - FLUSH_DEPTH, T + 1))
       : slab(plate, 0, T);
+  const L = design.loop.thickness;
+  if (loopOnly && !loopOnly.isEmpty() && Math.abs(L - T) > 0.001)
+    base = L < T ? base.subtract(slab(loopOnly, L, T + 1)) : base.add(slab(loopOnly, T, L));
   byColour.get(design.colours.plate.toUpperCase())!.unshift(base);
   if (patches.some((p) => p.h > TALL)) warnings.push("warn.tall");
 

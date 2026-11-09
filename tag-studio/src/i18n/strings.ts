@@ -125,6 +125,7 @@ const S = {
   "loop.offset": ["เลื่อนห่วงตามขอบ", "Slide along the edge"],
   "loop.hole": ["ขนาดรูห่วง", "Hole diameter"],
   "loop.wall": ["ความหนาขอบห่วง", "Loop wall"],
+  "loop.thickness": ["ความหนาห่วง (สูงจากพื้น)", "Loop thickness"],
 
   "view.tag": ["ป้ายนี้", "This tag"],
   "view.plate": ["เพลทแรก", "Plate 1"],
