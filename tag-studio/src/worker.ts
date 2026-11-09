@@ -1,6 +1,6 @@
 // Geometry worker: builds Name Tags with manifold-3d off the main thread.
 import wasmUrl from "manifold-3d/manifold.wasm?url";
-import { loadKernel } from "@cs/geometry/kernel.ts";
+import { loadKernel, release } from "@cs/geometry/kernel.ts";
 import type { Traced } from "@cs/geometry/decoration.ts";
 import type { Part } from "@cs/geometry/build.ts";
 import { platesTo3mf } from "@cs/export/bambu.ts";
@@ -60,50 +60,58 @@ function post(msg: WorkerReply, transfer: ArrayBuffer[] = []) {
   (self as unknown as Worker).postMessage(msg, [...new Set(transfer)]);
 }
 
-// Builds run one at a time; a newer request replaces any that hasn't started.
+// Jobs run one at a time, so freeing the kernel's objects after each one
+// can't touch another job's work. A newer build replaces one still waiting.
 let pending: BuildRequest | null = null;
-let busy = false;
-
-async function runBuilds() {
-  if (busy) return;
-  busy = true;
-  while (pending) {
-    const req = pending;
-    pending = null;
-    try {
-      await kernel;
-      const t = performance.now();
-      let reply: BuildReply;
-      if (req.plateView) {
-        const r = await buildAll(req.design, assets(req.traced));
-        const parts = r.plates[0]?.groups.flatMap((g) => g.parts) ?? [];
-        reply = { type: "build", id: req.id, parts, loop: null, plateView: true, plates: r.plates.length, warnings: r.warnings, patches: [], ms: 0 };
-      } else {
-        const r = await buildTag(req.design, req.name, assets(req.traced));
-        reply = { type: "build", id: req.id, parts: r.group.parts, loop: r.loop, plateView: false, plates: 0, warnings: r.warnings, patches: r.patches, ms: 0 };
-      }
-      reply.ms = performance.now() - t;
-      post(reply, buffers(reply.parts));
-    } catch (e) {
-      post({ type: "error", id: req.id, message: e instanceof Error ? e.message : String(e) });
-    }
-  }
-  busy = false;
+let queue: Promise<void> = Promise.resolve();
+function enqueue(job: () => Promise<void>) {
+  queue = queue.then(job, job);
 }
 
-self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
-  const req = e.data;
-  if (req.type === "build") {
-    pending = req;
-    void runBuilds();
-    return;
+async function runBuild() {
+  const req = pending;
+  pending = null;
+  if (!req) return;
+  try {
+    await kernel;
+    const t = performance.now();
+    let reply: BuildReply;
+    if (req.plateView) {
+      const r = await buildAll(req.design, assets(req.traced));
+      const parts = r.plates[0]?.groups.flatMap((g) => g.parts) ?? [];
+      reply = { type: "build", id: req.id, parts, loop: null, plateView: true, plates: r.plates.length, warnings: r.warnings, patches: [], ms: 0 };
+    } else {
+      const r = await buildTag(req.design, req.name, assets(req.traced));
+      reply = { type: "build", id: req.id, parts: r.group.parts, loop: r.loop, plateView: false, plates: 0, warnings: r.warnings, patches: r.patches, ms: 0 };
+    }
+    reply.ms = performance.now() - t;
+    post(reply, buffers(reply.parts));
+  } catch (e) {
+    console.error(e instanceof Error ? e.stack : e);
+    post({ type: "error", id: req.id, message: e instanceof Error ? e.message : String(e) });
+  } finally {
+    release();
   }
+}
+
+async function runExport(req: ExportRequest) {
   try {
     await kernel;
     const r = await buildAll(req.design, assets(req.traced));
     const out = platesTo3mf(req.design.name, r.plates, printTemplate);
     post({ type: "export", id: req.id, data: out.data, filaments: out.filaments, warnings: [...r.warnings, ...out.warnings], plates: r.plates.length, tags: r.tags });
   } catch (err) {
+    console.error(err instanceof Error ? err.stack : err);
     post({ type: "error", id: req.id, message: err instanceof Error ? err.message : String(err) });
+  } finally {
+    release();
   }
+}
+
+self.onmessage = (e: MessageEvent<WorkerRequest>) => {
+  const req = e.data;
+  if (req.type === "build") {
+    pending = req;
+    enqueue(runBuild);
+  } else enqueue(() => runExport(req));
 };

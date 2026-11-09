@@ -11,11 +11,11 @@ export function circle(r: number, at: [number, number] = [0, 0]): CrossSection {
 }
 
 export function polygon(points: [number, number][]): CrossSection {
-  return new (K().CrossSection)([points], "NonZero");
+  return K().CrossSection.ofPolygons([points], "NonZero");
 }
 
 export function rings(rs: Ring[], fill: "NonZero" | "EvenOdd" | "Positive" = "NonZero"): CrossSection {
-  return new (K().CrossSection)(rs, fill);
+  return K().CrossSection.ofPolygons(rs, fill);
 }
 
 /** Rounds convex corners by `r`. */

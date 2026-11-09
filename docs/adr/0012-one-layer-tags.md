@@ -11,10 +11,10 @@ The owner's decisions:
 
 - `TagDesign.plate.layers` is `2` (the old tag) or `1`. Saved Designs without it load as `2`.
 - `buildTag` builds the artwork, the plate outline and the loop exactly as before. With one layer it extrudes every colour from 0 to the thickness, and the plate colour gets the plate minus the artwork.
-- The plate outline comes from a simplified artwork outline, so the plate minus the exact artwork leaves hairline slivers along every edge and between traced colours. `withoutSlivers` drops the pieces thinner than 0.2 mm and keeps the rest exactly, so the frame and the artwork still share their boundaries. Opening the frame with offsets instead moved the boundaries and left the parts not quite touching.
+- The plate outline comes from a simplified artwork outline, so the plate minus the exact artwork leaves hairline slivers along every edge and between traced colours. `withoutSlivers` drops the slivers thinner than 0.2 mm and keeps the rest exactly, so the frame and the artwork still share their boundaries: an opening (shrink, then grow by 0.1 mm) finds the thick parts, and the exact shape within 0.3 mm of them is kept. Opening the whole frame instead moved the boundaries and left the parts not quite touching, and decomposing it into pieces overflowed the kernel's stack on a photo, where hairline gaps between traced colours make thousands of slivers ([ADR 0013](0013-kernel-memory-and-linear-builds.md)).
 - With no border, the loop is the ring plus the convex hull of the ring and the artwork within 1.5 mm of it (`loopTab`), so even a thin spike at the edge gets a solid tab, and the hole is cut from the artwork too. The loop's probe looks for the artwork's edge at the chosen position; when that misses (a gap between letters), it takes the nearby column whose edge reaches furthest out, so the loop lands on top of the B rather than in the notch between its bowls.
 - A colour whose part comes out empty is dropped, so a flat tag with no border and no loop costs no plate-colour filament, and the panel's colour count says so.
-- A crash inside the WASM kernel kills the worker without a reply. `engine.ts` now reports it as an error instead of leaving the preview blank.
+- A crash inside the WASM kernel kills the worker without a reply. `engine.ts` reports it as an error instead of leaving the preview blank, and since [ADR 0013](0013-kernel-memory-and-linear-builds.md) starts a fresh worker.
 
 ## Considered options
 

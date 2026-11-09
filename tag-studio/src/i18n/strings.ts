@@ -10,6 +10,7 @@ const S = {
   "design.newConfirm": ["เริ่มแบบใหม่? แบบปัจจุบันจะถูกล้าง (บันทึกก่อนถ้าต้องการ)", "Start a new Design? The current one is cleared (save it first if needed)."],
   "design.open": ["เปิดแบบ", "Open"],
   "design.openFailed": ["เปิดไฟล์แบบไม่ได้", "Could not open the Design"],
+  "error.crashed": ["การสร้างโมเดลครั้งก่อนทำให้หน้านี้พัง จึงยังไม่สร้างซ้ำ ลองแก้ค่าอะไรสักอย่างเพื่อสร้างใหม่ หรือกด “แบบใหม่” เพื่อเริ่มแบบใหม่", "The last build crashed this page, so it was not run again. Change something to retry, or press New to start a fresh Design."],
   "design.save": ["บันทึกแบบ", "Save"],
   "design.export": ["ส่งออก 3MF", "Export 3MF"],
 

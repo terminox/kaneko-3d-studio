@@ -113,7 +113,7 @@ _Avoid_: alphabet set, letter pack
 ### Tag Studio
 
 **Tag Studio**:
-The local tool that turns an uploaded picture and one or more names into Name Tags. It reuses Clicker Studio's picture and text handling.
+The local tool that turns an uploaded picture and one or more names into Name Tags. It reuses Clicker Studio's picture and text handling. Its geometry worker frees the kernel's objects after every job and builds a photo-sized picture in well under a second (ADR 0013).
 _Avoid_: tag maker, badge maker
 
 **Name Tag**:

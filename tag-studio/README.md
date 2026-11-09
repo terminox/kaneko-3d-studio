@@ -2,7 +2,7 @@
 
 An in-browser tool that turns an uploaded picture and a name into a multi-colour Name Tag keychain ([ADR 0006](../docs/adr/0006-standalone-tag-studio.md)). The plate follows the outline of the picture and the name. The picture's colours and the name are raised on top, and there's a keyring loop. A tag can also be one flat layer with no plate ([ADR 0012](../docs/adr/0012-one-layer-tags.md)). Type several names, one per line, to make a whole set with the same picture and style. The export is a Bambu Studio 3MF with every colour on its own filament.
 
-It reuses Clicker Studio's picture handling (background removal, the colour split, the AI cartoon) and its Thai text shaping. Its options follow Model Maker's name keychain: font, weight, letter spacing, border, plate thickness, raised height, fill holes and the keyring loop. Geometry runs in a Web Worker on manifold-3d. Nothing leaves the Mac, except a picture you choose to send for the AI cartoon step.
+It reuses Clicker Studio's picture handling (background removal, the colour split, the AI cartoon) and its Thai text shaping. Its options follow Model Maker's name keychain: font, weight, letter spacing, border, plate thickness, raised height, fill holes and the keyring loop. Geometry runs in a Web Worker on manifold-3d; the worker frees every kernel object after each build, and a photo-sized picture builds in well under a second ([ADR 0013](../docs/adr/0013-kernel-memory-and-linear-builds.md)). If a build ever kills the page, the next load shows the form without repeating it. Nothing leaves the Mac, except a picture you choose to send for the AI cartoon step.
 
 ## Run it
 

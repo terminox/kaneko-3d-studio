@@ -2,7 +2,7 @@
 
 A local, in-browser designer for MX-switch fidget clickers, in the style of Maaprint3Dshop's keycap clicker tool ([research](../docs/research/maaprint-clicker-tool.md), [ADR 0004](../docs/adr/0004-standalone-clicker-studio.md)). Pick a kind, type letters or upload a picture, choose colours, and export a Bambu Studio 3MF with every colour on its own filament. Designs and Orders save as files, and an Order prints as an order sheet.
 
-Thai and English, with Simple and Advanced screens. Geometry runs in a Web Worker on manifold-3d. Nothing leaves the Mac, except a picture you choose to send for the AI cartoon step.
+Thai and English, with Simple and Advanced screens. Geometry runs in a Web Worker on manifold-3d; the worker frees every kernel object after each job ([ADR 0013](../docs/adr/0013-kernel-memory-and-linear-builds.md)). Nothing leaves the Mac, except a picture you choose to send for the AI cartoon step.
 
 ## Run it
 

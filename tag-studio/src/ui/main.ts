@@ -8,7 +8,7 @@ import { emptyHeights, patchAt, resetPatchColours, samePt, setPatchColours } fro
 import { FILAMENTS, filamentName } from "@cs/design/palette.ts";
 import { renderColourBar } from "@cs/ui/colour-bar.ts";
 import { Viewport } from "./viewport.ts";
-import { onBuilt, requestBuild, requestExport } from "./engine.ts";
+import { crashedLastTime, onBuilt, requestBuild, requestExport } from "./engine.ts";
 import { colourCard, designColours, designNameCard, loadFonts, loopCard, nameCard, pictureCard, plateCard, ringsCard, type FontInfo } from "./panels.ts";
 import { cartoonAvailable, retracePicture } from "./picture-ui.ts";
 
@@ -272,6 +272,16 @@ async function start() {
   await Promise.all([loadFonts(), fontFaces()]);
   state.cartoonEnabled = await cartoonAvailable();
   await retracePicture();
+  if (crashedLastTime()) {
+    // The saved Design killed the last page mid-build: show the form, but
+    // don't run that build again until something changes.
+    state.error = t("error.crashed");
+    renderHeader();
+    renderPanels();
+    renderStageTools();
+    paintStatus();
+    return;
+  }
   rerender();
 }
 

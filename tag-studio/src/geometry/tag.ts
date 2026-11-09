@@ -11,7 +11,7 @@ import { circle, offset, rings } from "@cs/geometry/outline.ts";
 import { ringsBounds } from "@cs/geometry/path.ts";
 import { outlineRings, type Layer, type Traced } from "@cs/geometry/decoration.ts";
 import { slab } from "@cs/geometry/cap.ts";
-import { mergeAreas, patchRef, tracedPatches } from "@cs/geometry/patches.ts";
+import { mergeAreas, patchRef, tracedPatches, type PatchRef } from "@cs/geometry/patches.ts";
 import { FLUSH_DEPTH, TALL, type PatchInfo } from "@cs/design/heights.ts";
 import { packPlates, toMesh, type Group, type Plate } from "@cs/geometry/build.ts";
 import { tagNames, type TagDesign } from "../design/types.ts";
@@ -79,6 +79,10 @@ function placeName(nameCs: CrossSection, picture: CrossSection | null, design: T
   }
 }
 
+type Box = ReturnType<CrossSection["bounds"]>;
+/** True when the two bounding boxes touch or overlap. */
+const overlaps = (a: Box, b: Box) => a.min[0] <= b.max[0] && b.min[0] <= a.max[0] && a.min[1] <= b.max[1] && b.min[1] <= a.max[1];
+
 /** Keeps only the outer contours, so every hole is filled. */
 function fillHoles(cs: CrossSection): CrossSection {
   const outer = cs.toPolygons().filter((poly) => {
@@ -89,7 +93,7 @@ function fillHoles(cs: CrossSection): CrossSection {
     }
     return a > 0;
   });
-  return new (K().CrossSection)(outer, "NonZero");
+  return K().CrossSection.ofPolygons(outer, "NonZero");
 }
 
 /**
@@ -111,15 +115,19 @@ function plateOutline(art: CrossSection, design: TagDesign, warnings: string[]):
 }
 
 /**
- * Drops the pieces of `cs` thinner than 0.2 mm and keeps the rest exactly.
- * The flat frame is the plate minus the artwork, and the plate comes from a
- * simplified outline, so hairline slivers would otherwise line every edge.
+ * Drops the slivers of `cs` (anything thinner than 0.2 mm that stands on its
+ * own) and keeps the rest exactly. The flat frame is the plate minus the
+ * artwork: the plate comes from a simplified outline and neighbouring traced
+ * colours leave hairline gaps, so thousands of slivers line the edges. The
+ * opening finds the thick parts; whatever lies within 0.3 mm of them survives
+ * untouched, so the frame still shares its boundary with the artwork.
+ * (Decomposing the pieces instead overflows the kernel's stack past a couple
+ * of thousand contours.)
  */
 function withoutSlivers(cs: CrossSection): CrossSection {
-  const pieces = cs.decompose();
-  const kept = pieces.filter((p) => !offset(p, -0.1).isEmpty());
-  if (kept.length === pieces.length) return cs;
-  return kept.length ? K().CrossSection.union(kept) : cs.subtract(cs);
+  const thick = offset(offset(cs, -0.1), 0.1);
+  if (thick.isEmpty()) return thick;
+  return cs.intersect(offset(thick, 0.3));
 }
 
 /** Where a probe line across `cs` leaves it on one side; null when it misses. */
@@ -208,25 +216,43 @@ export async function buildTag(design: TagDesign, name: string, assets: TagAsset
   // traced vertex would multiply the vertex count (and the build time).
   const outline = CrossSection.union(art.map((l) => l.cs)).simplify(0.05);
   const bands = outlineRings([{ cs: outline, color: "" }], design.rings.width, design.rings.count).map((cs, i) => ({ cs, color: design.rings.colors[i] }));
-  const raised: Layer[] = [];
-  let covered: CrossSection | null = null;
-  for (const l of [...art, ...bands]) {
-    const cs: CrossSection = covered ? l.cs.subtract(covered) : l.cs;
-    covered = covered ? covered.add(l.cs) : l.cs;
+  // Each colour is traced on its own, so neighbouring patches of different
+  // layers overlap by hairlines along shared edges: the name wins, then the
+  // earlier layers. The cut is made per colour group (`groupArea`), a few
+  // booleans in all, not one per patch against everything before it, which
+  // made a photo's build quadratic. `coveredBefore` is what lies over each
+  // traced layer: the name and the layers before it.
+  const coveredBefore = new Map<number, CrossSection | null>();
+  {
+    const byLayer = new Map<number, CrossSection[]>();
+    for (const l of art) if (l.patch) byLayer.set(l.patch.layer, [...(byLayer.get(l.patch.layer) ?? []), l.cs]);
+    let cov: CrossSection | null = nameCs;
+    for (const L of [...byLayer.keys()].sort((x, y) => x - y)) {
+      coveredBefore.set(L, cov);
+      const u = CrossSection.union(byLayer.get(L)!);
+      cov = cov ? cov.add(u) : u;
+    }
+  }
+  const raised: Layer[] = [...art];
+  // The rings follow the simplified outline, so they are cut by the exact artwork.
+  const artAll = CrossSection.union(art.map((l) => l.cs));
+  for (const l of bands) {
+    const cs = l.cs.subtract(artAll);
     if (!cs.isEmpty()) raised.push({ ...l, cs });
   }
+  const covered = bands.length ? artAll.add(CrossSection.union(bands.map((l) => l.cs))) : artAll;
 
   // One layer with no border: no plate at all. The loop grips the artwork,
   // and whatever doesn't touch is a loose piece (warned, not joined).
   const flat = design.plate.layers === 1, bare = flat && design.plate.border === 0;
   let plate: CrossSection, loop: [number, number] | null, hole: CrossSection | null = null;
   if (bare) {
-    loop = loopCentre(covered!, design);
-    plate = loop ? loopTab(covered!, loop, design) : covered!.subtract(covered!);
+    loop = loopCentre(covered, design);
+    plate = loop ? loopTab(covered, loop, design) : covered.subtract(covered);
     if (loop) hole = circle(design.loop.hole / 2, loop);
-    if (covered!.add(plate).decompose().length > 1) warnings.push("warn.pieces");
+    if (covered.add(plate).decompose().length > 1) warnings.push("warn.pieces");
   } else {
-    plate = plateOutline(covered!.simplify(0.05), design, warnings);
+    plate = plateOutline(covered.simplify(0.05), design, warnings);
     loop = loopCentre(plate, design);
     if (loop) {
       plate = plate.add(circle(design.loop.hole / 2 + design.loop.wall, loop));
@@ -234,6 +260,20 @@ export async function buildTag(design: TagDesign, name: string, assets: TagAsset
       plate = plate.subtract(hole);
     }
   }
+
+  /** A colour group's area: its members merged, each traced layer cut by what lies over it, the loop hole taken out. */
+  const groupArea = (ls: Layer[]): CrossSection => {
+    const layers = [...new Set(ls.flatMap((l) => (l.patch ? [l.patch.layer] : [])))];
+    const parts: { cs: CrossSection; patch?: PatchRef }[] = ls.filter((l) => !l.patch).map((l) => ({ cs: l.cs }));
+    for (const L of layers) {
+      const own = ls.filter((l) => l.patch?.layer === L);
+      const u = own.length > 1 ? CrossSection.union(own.map((l) => l.cs)) : own[0].cs;
+      const cov = coveredBefore.get(L);
+      parts.push({ cs: cov ? u.subtract(cov) : u, patch: own[0].patch });
+    }
+    const area = mergeAreas(parts);
+    return hole ? area.subtract(hole) : area;
+  };
 
   // One part per colour; artwork in the plate's colour fuses into the plate.
   // Two layers: picture patches stand at their own height (0 = inlaid flush),
@@ -243,16 +283,17 @@ export async function buildTag(design: TagDesign, name: string, assets: TagAsset
   const T = design.plate.thickness, relief = design.plate.relief;
   const levels = new Map<string, { color: string; byH: Map<number, Layer[]> }>();
   const patches: PatchInfo[] = [];
+  const nameB = nameCs?.bounds();
   for (const l of raised) {
-    const cs = hole ? l.cs.subtract(hole) : l.cs;
-    if (cs.isEmpty()) continue;
     const h = flat ? 0 : (l.h ?? relief);
     const g = levels.get(l.color.toUpperCase()) ?? { color: l.color, byH: new Map() };
-    g.byH.set(h, [...(g.byH.get(h) ?? []), { ...l, cs }]);
+    g.byH.set(h, [...(g.byH.get(h) ?? []), l]);
     levels.set(l.color.toUpperCase(), g);
     if (l.patch) {
+      // A patch wholly under the name can't be seen or picked.
+      if (nameCs && nameB && overlaps(l.cs.bounds(), nameB) && l.cs.subtract(nameCs).isEmpty()) continue;
       const { layer, at, pins, paints, depth } = l.patch;
-      patches.push({ owner: -1, layer, at, pins, depth, h, own: pins.length > 0, color: l.color, paints, painted: paints.length > 0, top: T + h, rings: cs.simplify(0.05).toPolygons() as [number, number][][] });
+      patches.push({ owner: -1, layer, at, pins, depth, h, own: pins.length > 0, color: l.color, paints, painted: paints.length > 0, top: T + h, rings: l.cs.simplify(0.05).toPolygons() as [number, number][][] });
     }
   }
   const byColour = new Map<string, Manifold[]>();
@@ -262,7 +303,8 @@ export async function buildTag(design: TagDesign, name: string, assets: TagAsset
   byColour.set(design.colours.plate.toUpperCase(), []);
   for (const g of levels.values())
     for (const [h, ls] of g.byH) {
-      const cs = mergeAreas(ls);
+      const cs = groupArea(ls);
+      if (cs.isEmpty()) continue;
       if (flat) {
         cut.push(cs);
         put(g.color, slab(cs, 0, T));

@@ -1,6 +1,6 @@
 // Geometry worker: builds Designs with manifold-3d off the main thread.
 import wasmUrl from "manifold-3d/manifold.wasm?url";
-import { loadKernel } from "./geometry/kernel.ts";
+import { loadKernel, release } from "./geometry/kernel.ts";
 import { build, packPlates, type Group, type Keyring, type Part } from "./geometry/build.ts";
 import { parseIconSvg, type Assets, type Traced } from "./geometry/decoration.ts";
 import { platesTo3mf } from "./export/bambu.ts";
@@ -60,55 +60,48 @@ function buffers(parts: Part[]): ArrayBuffer[] {
   return parts.flatMap((p) => [p.mesh.vertices.buffer as ArrayBuffer, p.mesh.triangles.buffer as ArrayBuffer]);
 }
 
-// Builds run one at a time; a newer request replaces any that hasn't started.
+// Jobs run one at a time, so freeing the kernel's objects after each one
+// can't touch another job's work. A newer build replaces one still waiting.
 let pending: BuildRequest | null = null;
-let busy = false;
-
-async function runBuilds() {
-  if (busy) return;
-  busy = true;
-  while (pending) {
-    const req = pending;
-    pending = null;
-    try {
-      await kernel;
-      const t = performance.now();
-      const r = await build(req.design, assets(req.traced));
-      const plates = packPlates(r.print);
-      const reply: BuildReply = {
-        type: "build",
-        id: req.id,
-        assembled: r.assembled,
-        plates,
-        warnings: r.warnings,
-        switches: r.switches,
-        switchesPerCap: r.switchesPerCap,
-        keyring: r.keyring,
-        bottom: r.bottom,
-        patches: r.patches,
-        ms: performance.now() - t,
-      };
-      // The plate copies are new buffers; the assembled ones are too.
-      const transfer = [...buffers(r.assembled), ...plates.flatMap((p) => p.groups.flatMap((g) => buffers(g.parts)))];
-      (self as unknown as Worker).postMessage(reply, [...new Set(transfer)]);
-    } catch (e) {
-      post({ type: "error", id: req.id, message: e instanceof Error ? e.message : String(e) });
-    }
-  }
-  busy = false;
+let queue: Promise<void> = Promise.resolve();
+function enqueue(job: () => Promise<void>) {
+  queue = queue.then(job, job);
 }
 
-function post(msg: WorkerReply) {
-  (self as unknown as Worker).postMessage(msg);
+async function runBuild() {
+  const req = pending;
+  pending = null;
+  if (!req) return;
+  try {
+    await kernel;
+    const t = performance.now();
+    const r = await build(req.design, assets(req.traced));
+    const plates = packPlates(r.print);
+    const reply: BuildReply = {
+      type: "build",
+      id: req.id,
+      assembled: r.assembled,
+      plates,
+      warnings: r.warnings,
+      switches: r.switches,
+      switchesPerCap: r.switchesPerCap,
+      keyring: r.keyring,
+      bottom: r.bottom,
+      patches: r.patches,
+      ms: performance.now() - t,
+    };
+    // The plate copies are new buffers; the assembled ones are too.
+    const transfer = [...buffers(r.assembled), ...plates.flatMap((p) => p.groups.flatMap((g) => buffers(g.parts)))];
+    (self as unknown as Worker).postMessage(reply, [...new Set(transfer)]);
+  } catch (e) {
+    console.error(e instanceof Error ? e.stack : e);
+    post({ type: "error", id: req.id, message: e instanceof Error ? e.message : String(e) });
+  } finally {
+    release();
+  }
 }
 
-self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
-  const req = e.data;
-  if (req.type === "build") {
-    pending = req;
-    void runBuilds();
-    return;
-  }
+async function runExport(req: ExportRequest) {
   try {
     await kernel;
     const groups: Group[] = [];
@@ -123,6 +116,21 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
     const out = platesTo3mf(req.title, plates, printTemplate);
     post({ type: "export", id: req.id, data: out.data, filaments: out.filaments, warnings: [...warnings, ...out.warnings], plates: plates.length });
   } catch (err) {
+    console.error(err instanceof Error ? err.stack : err);
     post({ type: "error", id: req.id, message: err instanceof Error ? err.message : String(err) });
+  } finally {
+    release();
   }
+}
+
+function post(msg: WorkerReply) {
+  (self as unknown as Worker).postMessage(msg);
+}
+
+self.onmessage = (e: MessageEvent<WorkerRequest>) => {
+  const req = e.data;
+  if (req.type === "build") {
+    pending = req;
+    enqueue(runBuild);
+  } else enqueue(() => runExport(req));
 };

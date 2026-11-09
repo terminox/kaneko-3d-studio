@@ -5,6 +5,7 @@ import type { Mesh } from "@mm/pipeline/mesh.ts";
 import { buildAll, buildTag } from "../src/geometry/tag.ts";
 import { tagNames } from "../src/design/types.ts";
 import { withFace } from "./helpers.ts";
+import { tracePicture } from "@cs/picture/process.ts";
 import { nodeFont } from "../scripts/node-assets.ts";
 import { newTagDesign, upgradeTag } from "../src/design/types.ts";
 import { FLUSH_DEPTH, emptyHeights, setPatchColours, setPatchHeights } from "@cs/design/heights.ts";
@@ -286,4 +287,30 @@ test("one layer, no border: a loop over the gap between letters lands on top of 
 test("a saved Design without layers loads as two layers", () => {
   const d = upgradeTag({ plate: { thickness: 3, relief: 1.2, border: 2.5, fillHoles: true } as never });
   expect(d.plate.layers).toBe(2);
+});
+
+test("a photo-sized picture: hundreds of patches build in well under a second each, without overlaps, in one piece", async () => {
+  // A 4-colour checker whose cells never touch a cell of their own colour, not
+  // even at a corner: every cell is its own patch, traced on its own, so
+  // neighbours overlap by hairlines along every shared edge until they're cut.
+  const w = 240, h = 240, data = new Uint8ClampedArray(w * h * 4);
+  const tones = [[250, 200, 20], [30, 30, 30], [40, 120, 220], [220, 60, 90]];
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++) data.set([...tones[(Math.floor(x / 10) % 2) + 2 * (Math.floor(y / 10) % 2)], 255], (y * w + x) * 4);
+  const design = newTagDesign();
+  design.picture.image = "grid";
+  design.picture.colors = 4;
+  design.picture.width = 40;
+  const traced = tracePicture({ width: w, height: h, data }, design.picture);
+  design.picture.palette = traced.colours;
+  design.gap = -6; // the name lies over the picture too
+  const t = performance.now();
+  const r = await buildTag(design, "Ann", { font: nodeFont, traced: { grid: traced } });
+  expect(performance.now() - t).toBeLessThan(3000);
+  expect(r.patches.length).toBeGreaterThan(400);
+  expect(r.group.parts.length).toBe(6);
+  const solids = r.group.parts.map((p) => manifold(p.mesh));
+  for (let i = 0; i < solids.length; i++)
+    for (let j = i + 1; j < solids.length; j++) expect(solids[i].intersect(solids[j]).volume()).toBeLessThan(0.01);
+  expect(pieces(r.group.parts)).toBe(1);
 });
