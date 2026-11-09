@@ -117,5 +117,5 @@ The local tool that turns an uploaded picture and one or more names into Name Ta
 _Avoid_: tag maker, badge maker
 
 **Name Tag**:
-A flat keychain whose plate follows the Outline of a picture and a name, with the picture's colours and the name raised on top and a keyring loop.
+A flat keychain whose plate follows the Outline of a picture and a name, with the picture's colours and the name raised on top and a keyring loop. With one layer it has no plate: the colours sit side by side at the full thickness, held by a flat frame.
 _Avoid_: badge, name keychain (that is the Model Maker's Parametric Model), label

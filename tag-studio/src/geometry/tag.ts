@@ -1,6 +1,9 @@
 // Tag Design + one name -> a Name Tag: a plate that follows the picture and
 // the name, with the artwork raised on top, one part per colour, and a keyring
-// loop. Built flat on the bed (z = 0), face up. All sizes in mm.
+// loop. With one layer the artwork is a flat cut-out instead: every colour
+// runs from the bed to the full thickness, and the plate colour is left as the
+// border frame, the joins and the loop. Built flat on the bed (z = 0), face up.
+// All sizes in mm.
 import type { FontSource } from "@cs/text/shape.ts";
 import { textRings } from "@cs/text/shape.ts";
 import { K, type CrossSection, type Manifold } from "@cs/geometry/kernel.ts";
@@ -107,6 +110,18 @@ function plateOutline(art: CrossSection, design: TagDesign, warnings: string[]):
   return design.plate.fillHoles ? fillHoles(plate) : plate;
 }
 
+/**
+ * Drops the pieces of `cs` thinner than 0.2 mm and keeps the rest exactly.
+ * The flat frame is the plate minus the artwork, and the plate comes from a
+ * simplified outline, so hairline slivers would otherwise line every edge.
+ */
+function withoutSlivers(cs: CrossSection): CrossSection {
+  const pieces = cs.decompose();
+  const kept = pieces.filter((p) => !offset(p, -0.1).isEmpty());
+  if (kept.length === pieces.length) return cs;
+  return kept.length ? K().CrossSection.union(kept) : cs.subtract(cs);
+}
+
 /** Where a probe line across `cs` leaves it on one side; null when it misses. */
 function edge(cs: CrossSection, along: "x" | "y", at: number, dir: 1 | -1): number | null {
   const b = cs.bounds();
@@ -178,15 +193,17 @@ export async function buildTag(design: TagDesign, name: string, assets: TagAsset
   }
 
   // One part per colour; artwork in the plate's colour fuses into the plate.
-  // Picture patches stand at their own height (0 = inlaid flush); the name
-  // and rings at the Raised height. Areas of one colour and height extrude together.
-  const T = design.plate.thickness, relief = design.plate.relief;
+  // Two layers: picture patches stand at their own height (0 = inlaid flush),
+  // the name and rings at the Raised height. One layer: everything runs from
+  // the bed to T, and the plate colour fills only what the artwork leaves.
+  // Areas of one colour and height extrude together.
+  const T = design.plate.thickness, relief = design.plate.relief, flat = design.plate.layers === 1;
   const levels = new Map<string, { color: string; byH: Map<number, Layer[]> }>();
   const patches: PatchInfo[] = [];
   for (const l of raised) {
     const cs = hole ? l.cs.subtract(hole) : l.cs;
     if (cs.isEmpty()) continue;
-    const h = l.h ?? relief;
+    const h = flat ? 0 : (l.h ?? relief);
     const g = levels.get(l.color.toUpperCase()) ?? { color: l.color, byH: new Map() };
     g.byH.set(h, [...(g.byH.get(h) ?? []), { ...l, cs }]);
     levels.set(l.color.toUpperCase(), g);
@@ -198,27 +215,37 @@ export async function buildTag(design: TagDesign, name: string, assets: TagAsset
   const byColour = new Map<string, Manifold[]>();
   const put = (color: string, m: Manifold) => byColour.set(color.toUpperCase(), [...(byColour.get(color.toUpperCase()) ?? []), m]);
   const flush: CrossSection[] = [];
+  const cut: CrossSection[] = [];
   byColour.set(design.colours.plate.toUpperCase(), []);
   for (const g of levels.values())
     for (const [h, ls] of g.byH) {
       const cs = mergeAreas(ls);
-      if (h > 0) put(g.color, slab(cs, T, T + h));
+      if (flat) {
+        cut.push(cs);
+        put(g.color, slab(cs, 0, T));
+      } else if (h > 0) put(g.color, slab(cs, T, T + h));
       else {
         flush.push(cs);
         put(g.color, slab(cs, T - FLUSH_DEPTH, T));
       }
     }
-  const base = slab(plate, 0, T);
-  byColour.get(design.colours.plate.toUpperCase())!.unshift(flush.length ? base.subtract(slab(CrossSection.union(flush), T - FLUSH_DEPTH, T + 1)) : base);
-  if (byColour.size > 4) warnings.push("warn.over4");
+  const base = flat
+    ? slab(withoutSlivers(cut.length ? plate.subtract(CrossSection.union(cut)) : plate), 0, T)
+    : flush.length
+      ? slab(plate, 0, T).subtract(slab(CrossSection.union(flush), T - FLUSH_DEPTH, T + 1))
+      : slab(plate, 0, T);
+  byColour.get(design.colours.plate.toUpperCase())!.unshift(base);
   if (patches.some((p) => p.h > TALL)) warnings.push("warn.tall");
 
+  // A flat tag with no border, no loop and nothing apart has no plate colour at all.
   const label = name.trim() || "Tag";
-  const parts = [...byColour].map(([color, ms], i) => ({
-    name: i === 0 ? `${label} plate` : `${label} ${color}`,
-    color,
-    mesh: toMesh(ms.length > 1 ? K().Manifold.union(ms) : ms[0]),
-  }));
+  const parts: Group["parts"] = [];
+  for (const [i, [color, ms]] of [...byColour].entries()) {
+    const m = ms.length > 1 ? K().Manifold.union(ms) : ms[0];
+    if (m.isEmpty()) continue;
+    parts.push({ name: i === 0 ? `${label} plate` : `${label} ${color}`, color, mesh: toMesh(m) });
+  }
+  if (parts.length > 4) warnings.push("warn.over4");
   return { group: { name: label, parts }, loop, warnings, patches };
 }
 

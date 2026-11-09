@@ -196,7 +196,7 @@ export function pictureCard(): HTMLElement {
       ),
     );
   });
-  if (from.length) add(card, heightsBlock(() => (p.heights ??= emptyHeights()), p.heights, from.map((c, i) => p.palette[i] ?? c)));
+  if (from.length && d().plate.layers === 2) add(card, heightsBlock(() => (p.heights ??= emptyHeights()), p.heights, from.map((c, i) => p.palette[i] ?? c)));
   add(card,
     slider("picture.width", p.width, 15, 100, 1, "mm", (v) => {
       p.width = v;
@@ -371,17 +371,35 @@ export function nameCard(): HTMLElement {
 
 export function plateCard(): HTMLElement {
   const pl = d().plate;
+  const flat = pl.layers === 1;
   return section(
     "card.plate",
-    slider("plate.thickness", pl.thickness, 1, 8, 0.2, "mm", (v) => {
+    field(
+      t("plate.layers"),
+      segmented(
+        [
+          { value: "2", label: t("plate.two") },
+          { value: "1", label: t("plate.one") },
+        ],
+        String(pl.layers),
+        (v) => {
+          pl.layers = v === "1" ? 1 : 2;
+          rerender();
+        },
+      ),
+      t("plate.layersHint"),
+    ),
+    slider(flat ? "plate.thicknessFlat" : "plate.thickness", pl.thickness, 1, 8, 0.2, "mm", (v) => {
       pl.thickness = v;
       changed();
     }),
-    slider("plate.relief", pl.relief, 0.4, 5, 0.2, "mm", (v) => {
-      pl.relief = v;
-      changed();
-    }),
-    slider("plate.border", pl.border, 1, 8, 0.25, "mm", (v) => {
+    flat
+      ? null
+      : slider("plate.relief", pl.relief, 0.4, 5, 0.2, "mm", (v) => {
+          pl.relief = v;
+          changed();
+        }),
+    slider("plate.border", pl.border, 0, 8, 0.25, "mm", (v) => {
       pl.border = v;
       changed();
     }),
@@ -428,9 +446,9 @@ export function ringsCard(): HTMLElement {
 
 /* ---------- Colours ---------- */
 
-/** The filament colours a Design uses, plate first. */
+/** The filament colours a Design uses, plate first. A flat tag with no border and no loop may still use the plate colour for joins, which only the build knows. */
 export function designColours(x: TagDesign): string[] {
-  const out = [x.colours.plate];
+  const out = x.plate.layers === 1 && x.plate.border === 0 && x.loop.side === "none" ? [] : [x.colours.plate];
   if (tagNames(x).some(Boolean)) out.push(x.colours.name);
   if (x.picture.image) out.push(...x.picture.palette.slice(0, Math.max(1, x.picture.colors)), ...paintColours(x.picture.heights));
   out.push(...x.rings.colors.slice(0, x.rings.count));
@@ -452,7 +470,7 @@ export function colourCard(): HTMLElement {
   return section(
     "card.colours",
     field(t("colour.pairs"), pairs, t("colour.pairsHint")),
-    swatchField("colour.plate", d().colours.plate, (hex) => (d().colours.plate = hex)),
+    swatchField(d().plate.layers === 1 ? "colour.frame" : "colour.plate", d().colours.plate, (hex) => (d().colours.plate = hex)),
     swatchField("colour.name", d().colours.name, (hex) => (d().colours.name = hex)),
     h(
       "div",

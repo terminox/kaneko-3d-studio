@@ -25,10 +25,12 @@ export type TagDesign = {
   /** `picture.image` is "" until one is uploaded. */
   picture: PictureOptions;
   plate: {
+    /** 2 = a plate with the artwork raised on top; 1 = a flat cut-out, every colour from the bed to `thickness`. */
+    layers: 1 | 2;
     thickness: number;
-    /** Height of the picture, name and rings above the plate. */
+    /** Height of the picture, name and rings above the plate (two layers only). */
     relief: number;
-    /** How far the plate reaches past the artwork. */
+    /** How far the plate reaches past the artwork. With one layer, a flat frame in the plate colour. */
     border: number;
     /** Fill holes inside the outline (inside letters like O, or a punched picture). */
     fillHoles: boolean;
@@ -70,7 +72,7 @@ export function newTagDesign(): TagDesign {
       width: 40,
       useCartoon: false,
     },
-    plate: { thickness: 3, relief: 1.2, border: 2.5, fillHoles: true },
+    plate: { layers: 2, thickness: 3, relief: 1.2, border: 2.5, fillHoles: true },
     colours: { plate: "#FFFFFF", name: "#2F5FB3" },
     rings: { count: 0, width: 1.5, colors: ["#FFFFFF", "#1E1E1E"] },
     loop: { side: "top", offset: 0, hole: 4, wall: 2.5 },

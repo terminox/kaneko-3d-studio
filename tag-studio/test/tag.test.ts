@@ -6,7 +6,7 @@ import { buildAll, buildTag } from "../src/geometry/tag.ts";
 import { tagNames } from "../src/design/types.ts";
 import { withFace } from "./helpers.ts";
 import { nodeFont } from "../scripts/node-assets.ts";
-import { newTagDesign } from "../src/design/types.ts";
+import { newTagDesign, upgradeTag } from "../src/design/types.ts";
 import { FLUSH_DEPTH, emptyHeights, setPatchColours, setPatchHeights } from "@cs/design/heights.ts";
 
 beforeAll(async () => {
@@ -191,4 +191,48 @@ test("a painted patch builds in its filament, on a one-colour picture too", asyn
   setPatchColours((one.design.picture.heights ??= emptyHeights()), whole, "#D32F2F");
   const painted = await buildTag(one.design, "", one.assets);
   expect(painted.group.parts.map((p) => p.color)).toContain("#D32F2F");
+});
+
+test("a one-layer tag is a flat cut-out: every colour from the bed to the thickness, in one piece", async () => {
+  const { design, assets } = withFace(2);
+  design.plate.layers = 1;
+  // Heights are ignored with one layer.
+  design.picture.heights = { colour: [null, 3], pins: [] };
+  const r = await buildTag(design, "Miyu", assets);
+  expect(r.warnings).toEqual([]);
+  const T = design.plate.thickness;
+  // Frame + loop (white), face, eyes, name.
+  expect(r.group.parts.map((p) => p.color).sort()).toEqual(["#1E1E1E", "#2F5FB3", "#F7D046", "#FFFFFF"]);
+  expect(r.group.parts[0].name).toBe("Miyu plate");
+  for (const p of r.group.parts) {
+    const b = box(p.mesh);
+    expect(b.minZ).toBeCloseTo(0, 3);
+    expect(b.maxZ).toBeCloseTo(T, 3);
+  }
+  expect(r.patches.every((p) => p.h === 0 && p.top === T)).toBe(true);
+  const solids = r.group.parts.map((p) => manifold(p.mesh));
+  for (const s of solids) expect(s.status()).toBe("NoError");
+  for (let i = 0; i < solids.length; i++)
+    for (let j = i + 1; j < solids.length; j++) expect(solids[i].intersect(solids[j]).volume()).toBeLessThan(0.01);
+  expect(K().Manifold.union(solids).decompose().length).toBe(1);
+  expect(r.loop).not.toBeNull();
+});
+
+test("one layer with no border and no loop: a touching picture uses no plate colour, letters get joins", async () => {
+  const { design, assets } = withFace(2);
+  design.plate = { ...design.plate, layers: 1, border: 0, fillHoles: false };
+  design.loop.side = "none";
+  const pic = await buildTag(design, "", assets);
+  expect(pic.group.parts.map((p) => p.color).sort()).toEqual(["#1E1E1E", "#F7D046"]);
+  expect(pic.group.parts[0].name).toBe("Tag #F7D046");
+
+  const named = await buildTag(design, "Miyu", assets);
+  expect(named.group.parts.map((p) => p.color)).toContain("#FFFFFF");
+  const solids = named.group.parts.map((p) => manifold(p.mesh));
+  expect(K().Manifold.union(solids).decompose().length).toBe(1);
+});
+
+test("a saved Design without layers loads as two layers", () => {
+  const d = upgradeTag({ plate: { thickness: 3, relief: 1.2, border: 2.5, fillHoles: true } as never });
+  expect(d.plate.layers).toBe(2);
 });

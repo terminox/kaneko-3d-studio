@@ -89,7 +89,12 @@ const S = {
   "pos.left": ["ซ้าย", "Left"],
   "pos.right": ["ขวา", "Right"],
 
+  "plate.layers": ["จำนวนชั้น", "Layers"],
+  "plate.two": ["2 ชั้น: แผ่นป้าย + ลายนูน", "2: plate + raised artwork"],
+  "plate.one": ["1 ชั้น: ตัดตามลาย ไม่มีแผ่น", "1: flat cut-out, no plate"],
+  "plate.layersHint": ["1 ชั้น = ทุกสีหนาเท่ากันตั้งแต่พื้นถึงความหนาป้าย เรียงข้างกัน · ขอบกลายเป็นกรอบเรียบสีแผ่นป้ายที่ต่อชิ้นและรับห่วง · ความสูงลายนูนไม่มีผล", "One layer: every colour runs from the bed to the tag thickness, side by side. The border becomes a flat frame in the plate colour that joins the pieces and carries the loop. Heights don't apply."],
   "plate.thickness": ["ความหนาแผ่น", "Plate thickness"],
+  "plate.thicknessFlat": ["ความหนาป้าย", "Tag thickness"],
   "plate.relief": ["ความสูงลายนูน", "Raised height"],
   "plate.border": ["ขอบรอบลาย", "Border"],
   "plate.fillHoles": ["เติมรูด้านใน", "Fill holes"],
@@ -103,6 +108,7 @@ const S = {
   "rings.outer": ["สีขอบนอก", "Outer ring"],
 
   "colour.plate": ["สีแผ่นป้าย", "Plate colour"],
+  "colour.frame": ["สีขอบและห่วง", "Border & loop colour"],
   "colour.name": ["สีชื่อ", "Name colour"],
   "colour.pairs": ["คู่สีพร้อมใช้", "Colour pairs"],
   "colour.pairsHint": ["แตะ = แผ่นป้ายสีแรก ชื่อสีหลัง", "Tap: the plate takes the first colour, the name the second"],
