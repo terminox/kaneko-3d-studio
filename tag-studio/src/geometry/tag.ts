@@ -12,7 +12,7 @@ import { ringsBounds } from "@cs/geometry/path.ts";
 import { outlineRings, type Layer, type Traced } from "@cs/geometry/decoration.ts";
 import { slab } from "@cs/geometry/cap.ts";
 import { mergeAreas, patchRef, tracedPatches, type PatchRef } from "@cs/geometry/patches.ts";
-import { FLUSH_DEPTH, TALL, type PatchInfo } from "@cs/design/heights.ts";
+import { FLUSH_DEPTH, TALL, signedArea, type PatchInfo } from "@cs/design/heights.ts";
 import { packPlates, toMesh, type Group, type Plate } from "@cs/geometry/build.ts";
 import { tagNames, type TagDesign } from "../design/types.ts";
 
@@ -250,7 +250,10 @@ export async function buildTag(design: TagDesign, name: string, assets: TagAsset
     loop = loopCentre(covered, design);
     plate = loop ? loopTab(covered, loop, design) : covered.subtract(covered);
     if (loop) hole = circle(design.loop.hole / 2, loop);
-    if (covered.add(plate).decompose().length > 1) warnings.push("warn.pieces");
+    // Each piece has one outer contour (counter-clockwise). Counting them
+    // stands in for decompose(), which overflows a worker's stack on a photo.
+    const outers = (covered.add(plate).toPolygons() as [number, number][][]).filter((r) => signedArea(r) > 0);
+    if (outers.length > 1) warnings.push("warn.pieces");
   } else {
     plate = plateOutline(covered.simplify(0.05), design, warnings);
     loop = loopCentre(plate, design);

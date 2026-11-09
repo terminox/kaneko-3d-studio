@@ -10,8 +10,13 @@ import { FLUSH_DEPTH } from "../design/heights.ts";
 
 export type Solid = { name: string; color: string; m: Manifold };
 
-/** Extrudes `cs` from z0 to z1. */
+/**
+ * Extrudes `cs` from z0 to z1. Nothing extrudes to a valid empty solid:
+ * manifold's own extrude of nothing is an InvalidConstruction error, and any
+ * union with it comes back empty, taking the other solids with it.
+ */
 export function slab(cs: CrossSection, z0: number, z1: number): Manifold {
+  if (cs.isEmpty()) return K().Manifold.union([]);
   return cs.extrude(z1 - z0).translate([0, 0, z0]);
 }
 

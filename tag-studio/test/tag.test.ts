@@ -232,6 +232,18 @@ test("one layer, no border, no loop: the picture alone, in its own colours only"
   expect(r.loop).toBeNull();
 });
 
+test("one layer, no border, no loop: picture colours that match the plate colour stay", async () => {
+  const { design, assets } = withFace(2);
+  design.plate = { ...design.plate, layers: 1, border: 0 };
+  design.loop.side = "none";
+  // The face in the plate colour (white): there is no plate, but the face is still there.
+  design.picture.palette = ["#FFFFFF", "#1E1E1E"];
+  const r = await buildTag(design, "Miyu", assets);
+  expect(r.group.parts.map((p) => p.color).sort()).toEqual(["#1E1E1E", "#2F5FB3", "#FFFFFF"]);
+  const face = box(r.group.parts.find((p) => p.color === "#FFFFFF")!.mesh);
+  expect(face.maxX - face.minX).toBeGreaterThan(39);
+});
+
 test("one layer, no border: the loop grips the picture on every side and the hole goes through", async () => {
   const { design, assets } = withFace(2);
   design.plate = { ...design.plate, layers: 1, border: 0 };
