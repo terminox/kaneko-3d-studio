@@ -64,16 +64,17 @@ export const orderActions = {
       alert(`${t("order.loadFailed")}: ${e instanceof Error ? e.message : e}`);
     }
   },
-  async exportOrder() {
+  async exportOrder(format: "3mf" | "stl" = "3mf") {
     const o = state.order;
     state.status = t("status.exporting");
     statusChanged();
     try {
       let traced = {};
       for (const it of o.items) traced = { ...traced, ...(await traceDesign(it.design)) };
-      const r = await requestExport(o.customer || "Order", o.items.map((it) => ({ design: it.design, qty: it.qty })), traced, state.byColour);
-      download(`${slug(o.customer)}.3mf`, r.data as BlobPart, "model/3mf");
-      state.status = `${t("status.exported")}: ${r.plates} ${t("status.plates")}${r.warnings.length ? ` · ${r.warnings.join(" · ")}` : ""}`;
+      const r = await requestExport(o.customer || "Order", o.items.map((it) => ({ design: it.design, qty: it.qty })), traced, state.byColour, format);
+      if (format === "stl") download(`${slug(o.customer)}.zip`, r.data as BlobPart, "application/zip");
+      else download(`${slug(o.customer)}.3mf`, r.data as BlobPart, "model/3mf");
+      state.status = `${t("status.exported")}: ${format === "stl" ? `${r.files} ${t("status.files")}` : `${r.plates} ${t("status.plates")}`}${r.warnings.length ? ` · ${r.warnings.join(" · ")}` : ""}`;
     } catch (e) {
       state.error = e instanceof Error ? e.message : String(e);
       state.status = "";

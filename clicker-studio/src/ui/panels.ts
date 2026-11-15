@@ -1410,7 +1410,8 @@ function orderList(): HTMLElement {
         "div",
         { class: "btn-row" },
         button(`🧾 ${t("order.sheet")}`, () => orderActions.sheet()),
-        button(`⬇ ${t("order.export")}`, () => orderActions.exportOrder(), "primary"),
+        button(`⬇ ${t("order.export")}`, () => orderActions.exportOrder("3mf"), "primary"),
+        button(`⬇ ${t("order.exportStl")}`, () => orderActions.exportOrder("stl")),
       ),
     );
   }

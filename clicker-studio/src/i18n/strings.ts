@@ -14,6 +14,7 @@ const S = {
   "design.openFailed": ["เปิดไฟล์แบบไม่ได้", "Could not open the Design"],
   "design.save": ["บันทึกแบบ", "Save"],
   "design.export": ["ส่งออก 3MF", "Export 3MF"],
+  "design.exportStl": ["STL (zip)", "STL (zip)"],
 
   "card.kind": ["แบบคลิกเกอร์", "Clicker kind"],
   "card.top": ["ลายบนฝา", "On the cap"],
@@ -331,6 +332,7 @@ const S = {
   "status.tracing": ["กำลังแยกสีจากรูป…", "Tracing the picture…"],
   "status.exporting": ["กำลังทำไฟล์ 3MF…", "Making the 3MF…"],
   "status.exported": ["ส่งออกแล้ว", "Exported"],
+  "status.files": ["ไฟล์ STL", "STL files"],
   "status.plates": ["เพลท", "plate(s)"],
   "status.filaments": ["สี", "filaments"],
 
@@ -349,6 +351,7 @@ const S = {
   "order.total": ["รวม", "Total"],
   "order.sheet": ["ใบสั่งงาน", "Order sheet"],
   "order.export": ["3MF ทั้งออเดอร์", "Order 3MF"],
+  "order.exportStl": ["STL ทั้งออเดอร์ (zip)", "Order STL (zip)"],
   "order.save": ["บันทึกออเดอร์", "Save order"],
   "order.load": ["เปิดออเดอร์", "Open order"],
   "order.clear": ["ล้าง", "Clear"],

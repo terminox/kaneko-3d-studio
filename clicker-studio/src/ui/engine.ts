@@ -37,9 +37,9 @@ export function requestBuild(design: Design, traced: Record<string, Traced>) {
   worker.postMessage(msg);
 }
 
-export function requestExport(title: string, designs: { design: Design; qty: number }[], traced: Record<string, Traced>, byColour = false): Promise<ExportReply> {
+export function requestExport(title: string, designs: { design: Design; qty: number }[], traced: Record<string, Traced>, byColour = false, format: "3mf" | "stl" = "3mf"): Promise<ExportReply> {
   const id = nextId++;
-  const msg: WorkerRequest = { type: "export", id, title, designs: designs.map((x) => ({ design: clean(x.design), qty: x.qty })), traced, byColour };
+  const msg: WorkerRequest = { type: "export", id, title, designs: designs.map((x) => ({ design: clean(x.design), qty: x.qty })), traced, byColour, format };
   return new Promise((resolve, reject) => {
     waiting.set(id, {
       resolve: (r) => (r.type === "export" ? resolve(r) : reject(new Error(r.type === "error" ? r.message : "unexpected reply"))),

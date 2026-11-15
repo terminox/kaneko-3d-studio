@@ -8,6 +8,7 @@ import type { Design } from "./design/types.ts";
 import type { PatchInfo } from "./design/heights.ts";
 import type { SplitInfo } from "./geometry/split.ts";
 import { printTemplate } from "./export/template.ts";
+import { stlZip, type StlSet } from "./export/stl.ts";
 
 export type BuildRequest = { type: "build"; id: number; design: Design; traced: Record<string, Traced> };
 export type ExportRequest = {
@@ -18,6 +19,8 @@ export type ExportRequest = {
   traced: Record<string, Traced>;
   /** Put one-colour pieces on plates of their own colour (fewer filament swaps). */
   byColour: boolean;
+  /** 3mf: packed Bambu Studio plates. stl: a zip of loose STLs, each piece in its own print frame. */
+  format: "3mf" | "stl";
 };
 export type WorkerRequest = BuildRequest | ExportRequest;
 
@@ -35,7 +38,7 @@ export type BuildReply = {
   split: SplitInfo | null;
   ms: number;
 };
-export type ExportReply = { type: "export"; id: number; data: Uint8Array; filaments: string[]; warnings: string[]; plates: number };
+export type ExportReply = { type: "export"; id: number; data: Uint8Array; filaments: string[]; warnings: string[]; plates: number; files: number };
 export type ErrorReply = { type: "error"; id: number; message: string };
 export type WorkerReply = BuildReply | ExportReply | ErrorReply;
 
@@ -111,16 +114,27 @@ async function runExport(req: ExportRequest) {
   try {
     await kernel;
     const groups: Group[] = [];
+    const sets: StlSet[] = [];
     const warnings: string[] = [];
     for (const { design, qty } of req.designs) {
       const r = await build(design, assets(req.traced));
       warnings.push(...r.warnings.map((w) => `${design.name}: ${w}`));
+      // Repeats of a Design are separate files, so a slicer can place each one.
+      sets.push({
+        folder: req.designs.length > 1 ? design.name : null,
+        groups: Array.from({ length: qty }, (_, n) => r.print.map((g) => ({ ...g, name: qty > 1 ? `${g.name} #${n + 1}` : g.name }))).flat(),
+      });
       for (let n = 0; n < qty; n++)
         groups.push(...r.print.map((g) => ({ ...g, name: `${design.name}${qty > 1 ? ` #${n + 1}` : ""} · ${g.name}` })));
     }
+    if (req.format === "stl") {
+      const out = stlZip(sets);
+      post({ type: "export", id: req.id, data: out.data, filaments: [], warnings, plates: 0, files: out.files });
+      return;
+    }
     const plates = packPlates(groups, { byColour: req.byColour });
     const out = platesTo3mf(req.title, plates, printTemplate);
-    post({ type: "export", id: req.id, data: out.data, filaments: out.filaments, warnings: [...warnings, ...out.warnings], plates: plates.length });
+    post({ type: "export", id: req.id, data: out.data, filaments: out.filaments, warnings: [...warnings, ...out.warnings], plates: plates.length, files: 0 });
   } catch (err) {
     console.error(err instanceof Error ? err.stack : err);
     post({ type: "error", id: req.id, message: err instanceof Error ? err.message : String(err) });

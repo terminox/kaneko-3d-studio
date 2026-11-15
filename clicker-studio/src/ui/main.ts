@@ -64,13 +64,14 @@ const designActions = {
       alert(`${t("design.openFailed")}: ${e instanceof Error ? e.message : e}`);
     }
   },
-  async export3mf() {
+  async exportAs(format: "3mf" | "stl") {
     state.status = t("status.exporting");
     paintStatus();
     try {
-      const r = await requestExport(state.design.name, [{ design: state.design, qty: 1 }], state.traced);
-      download(`${slug(state.design.name)}.3mf`, r.data as BlobPart, "model/3mf");
-      state.status = `${t("status.exported")}: ${r.plates} ${t("status.plates")}, ${r.filaments.length} ${t("status.filaments")}`;
+      const r = await requestExport(state.design.name, [{ design: state.design, qty: 1 }], state.traced, false, format);
+      if (format === "stl") download(`${slug(state.design.name)}.zip`, r.data as BlobPart, "application/zip");
+      else download(`${slug(state.design.name)}.3mf`, r.data as BlobPart, "model/3mf");
+      state.status = format === "stl" ? `${t("status.exported")}: ${r.files} ${t("status.files")}` : `${t("status.exported")}: ${r.plates} ${t("status.plates")}, ${r.filaments.length} ${t("status.filaments")}`;
       state.error = r.warnings.join(" · ");
     } catch (e) {
       state.error = e instanceof Error ? e.message : String(e);
@@ -101,7 +102,8 @@ function renderHeader() {
     button(`＋ ${t("design.new")}`, () => designActions.fresh()),
     button(`📂 ${t("design.open")}`, () => designActions.open()),
     button(`💾 ${t("design.save")}`, () => designActions.save()),
-    button(`⬇ ${t("design.export")}`, () => designActions.export3mf(), "primary"),
+    button(`⬇ ${t("design.export")}`, () => designActions.exportAs("3mf"), "primary"),
+    button(`⬇ ${t("design.exportStl")}`, () => designActions.exportAs("stl")),
     segmented(
       [
         { value: "th", label: "TH" },

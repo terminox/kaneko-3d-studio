@@ -83,6 +83,8 @@ Raised Decorations print the cap face up. Flush inlays print it face down, so th
 
 One 3MF per Design (the header button) or per Order. Parts are packed onto 256 mm A1 plates with the top-right corner left free for the prime tower. "Group plates by colour" (on the Order panel) puts one-colour pieces on their own colour's plates, which cuts filament swaps a lot (a 4-colour fluted chain: 11.6 h on one plate → about 30 min per plate).
 
+"STL (zip)" (next to the 3MF button, and on the Order panel) gives plain STLs for other slicers. There is one file per printed part, named `<group> - <part>.stl`, so each colour can get its own filament. Every piece stands on z = 0 in its own frame and nothing is packed onto a plate. Support volumes are left out. An Order puts each Design in its own folder, and a Design ordered more than once repeats as `#1`, `#2`.
+
 ## Command line
 
 ```sh
@@ -103,7 +105,7 @@ src/geometry/   kernel, switch (Fit), switches (where the switches go under a sh
                 patches (picture islands + heights), symbols, path (SVG paths), build.ts (Design → parts, plate packing)
 src/text/       shape.ts: HarfBuzz text shaping with per-character font fallback
 src/picture/    process.ts: background removal, holes, Lab k-means colour split, tracing
-src/export/     bambu.ts (→ Model Maker's 3MF writer), template.ts
+src/export/     bambu.ts (→ Model Maker's 3MF writer), stl.ts (STL zip), template.ts
 src/ui/         main, panels, colour-bar (part colours), picture-ui (crop dialog, AI), order-ui (order sheet), viewport, state
 src/i18n/       strings.ts: every Thai and English string
 scripts/        fetch-assets, make, check-kinds, min-sizes, cartoon (OpenRouter call), cartoon-api (dev-server endpoint)
