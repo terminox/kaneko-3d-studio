@@ -173,6 +173,11 @@ const S = {
   "loop.bottom": ["↓ ล่าง", "↓ Bottom"],
   "loop.both": ["↔ ซ้าย + ขวา", "↔ Left + right"],
   "loop.topBottom": ["↕ บน + ล่าง", "↕ Top + bottom"],
+  "loop.angle": ["⟳ มุมใดก็ได้", "⟳ Any angle"],
+  "loop.angle.label": ["มุม (0° = ขวา, 90° = บน)", "Angle (0° = right, 90° = top)"],
+  "loop.ccw": ["หมุนทวนเข็ม 15°", "Turn anticlockwise 15°"],
+  "loop.cw": ["หมุนตามเข็ม 15°", "Turn clockwise 15°"],
+  "loop.slide": ["เลื่อนตามขอบ", "Slide along the edge"],
   "loop.hole": ["ขนาดรูห่วง", "Loop hole"],
 
   "connector.label": ["ตัวต่อ H (ต่อกับบล็อก Bubbly ได้)", "H-connector (links with Bubbly blocks)"],

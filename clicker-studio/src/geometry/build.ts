@@ -217,8 +217,8 @@ export async function build(design: Design, assets: Assets): Promise<BuildResult
     const room = K().CrossSection.union(baseKeys.flatMap(keySwitches).map((s) => K().CrossSection.square([fit.clipRoom, fit.clipRoom], true).translate(s)));
     if (room.subtract(inner).area() > 0.01) warnings.push("warn.pocket");
   }
-  const loops = foot && wantBase && design.kind !== "fluted" ? loopCentres(foot, base.loop, base.loopHole / 2, connectorSides(base)) : [];
-  const keyring = keyringPoint(loops, joints, foot, bottom);
+  const loops = foot && wantBase && design.kind !== "fluted" ? loopCentres(foot, base.loop, base.loopHole / 2, connectorSides(base), base.loopAngle, base.loopSlide) : [];
+  const keyring = keyringPoint(loops, joints, foot, bottom, base.loop === "angle" ? base.loopAngle : null);
   if (patches.some((p) => p.h > TALL)) warnings.push("warn.tall");
   if (caps.length && wantCaps && wantBase && design.kind !== "model") {
     const rimTop = baseLevels(base, fit).wallTop;
@@ -280,12 +280,13 @@ function supportParts(volumes: Manifold[], color: string, mesh: (m: Manifold) =>
 }
 
 /** A keyring loop if there is one, else the first tab hole (a fluted chain's first link). */
-function keyringPoint(loops: [number, number][], joints: Joint[], foot: CrossSection | null, bottom: number): Keyring | null {
+function keyringPoint(loops: [number, number][], joints: Joint[], foot: CrossSection | null, bottom: number, angle: number | null): Keyring | null {
   if (loops.length) {
     const b = foot?.bounds();
     const [cx, cy] = b ? [(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2] : [0, 0];
     const [x, y] = loops[0];
-    const dir: [number, number] = Math.abs(x - cx) > 1 ? [Math.sign(x - cx), 0] : [0, Math.sign(y - cy) || -1];
+    const r = ((angle ?? 0) * Math.PI) / 180;
+    const dir: [number, number] = angle !== null ? [Math.cos(r), Math.sin(r)] : Math.abs(x - cx) > 1 ? [Math.sign(x - cx), 0] : [0, Math.sign(y - cy) || -1];
     return { at: loops[0], dir, z: bottom + 1.5 };
   }
   const tab = joints.find((j) => j.role === "tab");

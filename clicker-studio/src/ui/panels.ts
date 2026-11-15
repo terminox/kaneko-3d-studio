@@ -1169,6 +1169,33 @@ const TEXTURES: { value: Texture; icon: string; label: StringKey }[] = [
   { value: "dots", icon: "⠿", label: "texture.dots" },
 ];
 
+/** Angle (15 degree steps and a number box) and slide of an "Any angle" keyring loop. */
+function loopAngleRow(b: Design["base"]): HTMLElement {
+  const wrap = (a: number) => ((Math.round(a) % 360) + 360) % 360;
+  const num = h("input", { class: "num", attrs: { type: "number", min: 0, max: 359, step: 1, value: String(b.loopAngle) } });
+  const slide = h("input", { class: "num", attrs: { type: "number", min: -40, max: 40, step: 0.5, value: String(b.loopSlide) } });
+  const setAngle = (a: number) => {
+    if (!Number.isFinite(a)) return;
+    b.loopAngle = wrap(a);
+    num.value = String(b.loopAngle);
+    changed();
+  };
+  const setSlide = (v: number) => {
+    if (!Number.isFinite(v)) return;
+    b.loopSlide = Math.min(40, Math.max(-40, Math.round(v * 2) / 2));
+    slide.value = String(b.loopSlide);
+    changed();
+  };
+  num.addEventListener("change", () => setAngle(Number(num.value)));
+  slide.addEventListener("change", () => setSlide(Number(slide.value)));
+  return h("div", { class: "field" },
+    h("div", { class: "field-label" }, h("span", { text: t("loop.angle.label") })),
+    h("div", { style: "display:flex;gap:6px;align-items:center", class: "loop-row" }, button("⟲", () => setAngle(b.loopAngle + 15), "ghost", t("loop.ccw")), h("span", { class: "unit" }, num, "°"), button("⟳", () => setAngle(b.loopAngle - 15), "ghost", t("loop.cw"))),
+    h("div", { class: "field-label" }, h("span", { text: t("loop.slide") })),
+    h("div", { style: "display:flex;gap:6px;align-items:center", class: "loop-row" }, button("−", () => setSlide(b.loopSlide - 0.5), "ghost"), h("span", { class: "unit" }, slide, "mm"), button("+", () => setSlide(b.loopSlide + 0.5), "ghost")),
+  );
+}
+
 export function baseCard(): HTMLElement | null {
   if (d().parts === "caps" || d().parts === "az-set" || d().kind === "split") return null;
   const b = d().base;
@@ -1280,17 +1307,18 @@ export function baseCard(): HTMLElement | null {
       field(
         t("loop.label"),
         segmented(
-          (["none", "left", "top", "right", "bottom", "both", "topBottom"] as Loop[]).map((v) => ({ value: v, label: t(`loop.${v}` as StringKey) })),
+          (["none", "left", "top", "right", "bottom", "both", "topBottom", "angle"] as Loop[]).map((v) => ({ value: v, label: t(`loop.${v}` as StringKey) })),
           b.loop,
           (v) => {
             b.loop = v;
-            changed();
+            rerender();
           },
           "wrap small",
         ),
       ),
     );
-    if (adv())
+    if (b.loop === "angle") add(card, loopAngleRow(b));
+    if (b.loop === "angle" || (adv() && b.loop !== "none"))
       add(card, 
         slider("loop.hole", b.loopHole, 2, 6, 0.1, "mm", (v) => {
           b.loopHole = v;

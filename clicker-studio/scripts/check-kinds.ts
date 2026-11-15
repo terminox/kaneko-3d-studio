@@ -61,6 +61,13 @@ const fixtures: Record<string, () => { design: Design; traced: Record<string, Tr
     d.keys[0].outline = 1;
     return { design: d, traced: {} };
   },
+  loop45: () => {
+    const d = newDesign("cap");
+    d.base.loop = "angle";
+    d.base.loopAngle = 45;
+    d.base.loopSlide = 2;
+    return { design: d, traced: {} };
+  },
   row: () => {
     const d = newDesign("row");
     d.keys = [..."มิยู"].map((c) => ({ ...d.keys[0], deco: { type: "text", text: c, font: "Kanit-700" } }));

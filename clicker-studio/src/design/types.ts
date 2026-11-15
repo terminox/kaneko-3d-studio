@@ -21,8 +21,8 @@ export type Layout = "row" | "column" | "grid" | "wasd" | "arrows" | "t" | "cust
 
 export type Texture = "none" | "ribs" | "sawtooth" | "grooves" | "diamond" | "wave" | "dots";
 
-/** Keyring loop sides. "both" is left + right (kept for saved designs); "topBottom" is top + bottom. */
-export type Loop = "none" | "left" | "top" | "right" | "bottom" | "both" | "topBottom";
+/** Keyring loop sides. "both" is left + right (kept for saved designs); "topBottom" is top + bottom; "angle" uses `loopAngle` and `loopSlide`. */
+export type Loop = "none" | "left" | "top" | "right" | "bottom" | "both" | "topBottom" | "angle";
 
 /** A Base side, seen from above: top is +y. */
 export type Side = "left" | "right" | "top" | "bottom";
@@ -102,6 +102,10 @@ export type BaseOptions = {
   loop: Loop;
   loopHole: number;
   loopThickness: number;
+  /** "angle" loop: degrees round the rim, 0 = right, 90 = top. */
+  loopAngle: number;
+  /** "angle" loop: mm along the rim from the centre line. */
+  loopSlide: number;
   /** Space between neighbouring keys in a Block Clicker. */
   gap: number;
   /** H-connector end on each side. */
@@ -226,6 +230,8 @@ export function newDesign(kind: Kind = "cap"): Design {
       loop: "right",
       loopHole: 3.5,
       loopThickness: 3,
+      loopAngle: 90,
+      loopSlide: 0,
       gap: 1.6,
       connectors: { left: "none", right: "none", top: "none", bottom: "none" },
       join: "rings",

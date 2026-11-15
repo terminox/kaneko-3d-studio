@@ -38,12 +38,24 @@ export function connectorSides(opts: BaseOptions): Set<Side> {
 }
 
 /** Keyring loop centres for a footprint. Sides in `taken` (an H-connector's) get none. */
-export function loopCentres(foot: CrossSection, loop: Loop, holeR: number, taken: Set<Side> = new Set()): [number, number][] {
+export function loopCentres(foot: CrossSection, loop: Loop, holeR: number, taken: Set<Side> = new Set(), angle = 90, slide = 0): [number, number][] {
   if (loop === "none") return [];
   const b = foot.bounds();
   const cy = (b.min[1] + b.max[1]) / 2;
   const cx = (b.min[0] + b.max[0]) / 2;
   const d = holeR + 0.9;
+  if (loop === "angle") {
+    // An H-connector on the side nearest the angle (within 45 degrees) keeps the loop off.
+    for (const side of taken) if (angleGap(angle, SIDE_ANGLE[side]) <= 45 + 1e-6) return [];
+    // Turn the footprint so the chosen direction points along +x, probe its edge, turn the point back.
+    const turned = foot.translate([-cx, -cy]).rotate(-angle);
+    // A slide past the footprint would probe nothing; stop the loop at the end of the rim instead.
+    const tb = turned.bounds();
+    const y = Math.min(Math.max(slide, tb.min[1] + 0.5), tb.max[1] - 0.5);
+    const r = (angle * Math.PI) / 180;
+    const [px, py] = [edgeX(turned, y, 1) + d, y];
+    return [[cx + px * Math.cos(r) - py * Math.sin(r), cy + px * Math.sin(r) + py * Math.cos(r)]];
+  }
   const pts: [number, number][] = [];
   // Place the loop where the footprint actually is on that side: probe the edge at the centre line.
   if ((loop === "left" || loop === "both") && !taken.has("left")) pts.push([edgeX(foot, cy, -1) - d, cy]);
@@ -51,6 +63,13 @@ export function loopCentres(foot: CrossSection, loop: Loop, holeR: number, taken
   if ((loop === "top" || loop === "topBottom") && !taken.has("top")) pts.push([cx, edgeY(foot, cx, 1) + d]);
   if ((loop === "bottom" || loop === "topBottom") && !taken.has("bottom")) pts.push([cx, edgeY(foot, cx, -1) - d]);
   return pts;
+}
+
+const SIDE_ANGLE: Record<Side, number> = { right: 0, top: 90, left: 180, bottom: 270 };
+
+function angleGap(a: number, b: number): number {
+  const g = Math.abs((((a - b) % 360) + 360) % 360);
+  return Math.min(g, 360 - g);
 }
 
 function edgeX(cs: CrossSection, y: number, dir: 1 | -1): number {
@@ -97,7 +116,7 @@ export function buildBase(keys: BaseKey[], opts: BaseOptions, fit: Fit, footprin
 
   // Keyring loops sit flush with the bottom.
   const holeR = opts.loopHole / 2;
-  const loops = loopCentres(foot, opts.loop, holeR, connectorSides(opts));
+  const loops = loopCentres(foot, opts.loop, holeR, connectorSides(opts), opts.loopAngle, opts.loopSlide);
   for (const c of loops) body = body.add(slab(circle(holeR + 2.4, c), bottom, bottom + opts.loopThickness));
 
   const joints = baseJoints(keys, opts, fit, foot);
