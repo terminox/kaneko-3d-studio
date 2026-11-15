@@ -1,5 +1,6 @@
 // Main-thread client for the geometry worker.
 import type { Design } from "../design/types.ts";
+import { clean } from "../design/clean.ts";
 import type { Traced } from "../geometry/decoration.ts";
 import type { BuildReply, ExportReply, WorkerReply, WorkerRequest } from "../worker.ts";
 
@@ -23,11 +24,6 @@ worker.onmessage = (e: MessageEvent<WorkerReply>) => {
 
 export function onBuilt(fn: typeof onBuild) {
   onBuild = fn;
-}
-
-/** Strips derived data so the worker gets a plain copy. */
-function clean(d: Design): Design {
-  return JSON.parse(JSON.stringify({ ...d, files: Object.fromEntries(Object.entries(d.files).filter(([k]) => k.startsWith("model-"))) }));
 }
 
 export function requestBuild(design: Design, traced: Record<string, Traced>) {

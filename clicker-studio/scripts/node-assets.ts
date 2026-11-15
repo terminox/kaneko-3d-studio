@@ -2,6 +2,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parseIconSvg, type Assets, type IconData } from "../src/geometry/decoration.ts";
+import { fontSource } from "../src/text/font-source.ts";
 
 const ROOT = join(import.meta.dir, "..");
 const FONT_DIRS = [join(ROOT, "public/fonts"), join(ROOT, "../model-maker/public/fonts")];
@@ -21,6 +22,7 @@ export async function nodeIcon(id: string): Promise<IconData> {
   return parseIconSvg(svg);
 }
 
-export function nodeAssets(): Assets {
-  return { font: nodeFont, icon: nodeIcon, traced: {} };
+/** `files`: a Design's files, so fonts the owner imported resolve too. */
+export function nodeAssets(files: Record<string, string> = {}): Assets {
+  return { font: fontSource(files, nodeFont), icon: nodeIcon, traced: {} };
 }

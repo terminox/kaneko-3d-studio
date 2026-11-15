@@ -3,6 +3,7 @@ import wasmUrl from "manifold-3d/manifold.wasm?url";
 import { loadKernel, release, type Memo } from "./geometry/kernel.ts";
 import { build, packPlates, type Group, type Keyring, type Part } from "./geometry/build.ts";
 import { parseIconSvg, type Assets, type Traced } from "./geometry/decoration.ts";
+import { fontSource } from "./text/font-source.ts";
 import { platesTo3mf } from "./export/bambu.ts";
 import type { Design } from "./design/types.ts";
 import type { PatchInfo } from "./design/heights.ts";
@@ -47,13 +48,15 @@ const kernel = loadKernel(wasmUrl);
 /** Parsed models and what was worked out from them, kept across jobs (plain data, so `release` can't free it). */
 const memo: Memo = new Map();
 
-function assets(traced: Record<string, Traced>): Assets {
+async function bundledFont(name: string): Promise<ArrayBuffer> {
+  const res = await fetch(`${base}fonts/${name}.ttf`);
+  if (!res.ok) throw new Error(`Font ${name} is missing (run bun run setup)`);
+  return res.arrayBuffer();
+}
+
+function assets(traced: Record<string, Traced>, files: Record<string, string>): Assets {
   return {
-    font: async (name) => {
-      const res = await fetch(`${base}fonts/${name}.ttf`);
-      if (!res.ok) throw new Error(`Font ${name} is missing (run bun run setup)`);
-      return res.arrayBuffer();
-    },
+    font: fontSource(files, bundledFont),
     icon: async (id) => {
       const res = await fetch(`${base}icons/${id}.svg`);
       if (!res.ok) throw new Error(`Icon ${id} is missing`);
@@ -83,7 +86,7 @@ async function runBuild() {
   try {
     await kernel;
     const t = performance.now();
-    const r = await build(req.design, assets(req.traced));
+    const r = await build(req.design, assets(req.traced, req.design.files));
     const plates = packPlates(r.print);
     const reply: BuildReply = {
       type: "build",
@@ -117,7 +120,7 @@ async function runExport(req: ExportRequest) {
     const sets: StlSet[] = [];
     const warnings: string[] = [];
     for (const { design, qty } of req.designs) {
-      const r = await build(design, assets(req.traced));
+      const r = await build(design, assets(req.traced, design.files));
       warnings.push(...r.warnings.map((w) => `${design.name}: ${w}`));
       // Repeats of a Design are separate files, so a slicer can place each one.
       sets.push({

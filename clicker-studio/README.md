@@ -67,6 +67,14 @@ In the Raised style, a picture (the Picture kind, or a picture on a key) can sta
 
 A picture's patches can each have their own filament, in Raised and Inlay ([ADR 0010](../docs/adr/0010-per-patch-colours.md)). Click or tap a patch in the 3D preview and a colour bar opens over it. Choose a filament and only that patch changes. Use Shift-click or **Pick several** to pick more, and **Reset colour** to go back to the patch's colour. Colours stay with their spot on the picture through a retrace or a re-crop. On an iPad the bar stays over the preview and its swatches swipe sideways.
 
+## Your own fonts
+
+In the key's text options, press **Import font (TTF/OTF)** and pick a font file. It joins the picker under "Your fonts", named after the file, and becomes that key's font. Letter rows, grids and the A to Z set can use it too.
+
+The font is stored inside the Design file, so Save and Open keep it. Characters the font lacks (Thai, Korean, Chinese, emoji) still use the bundled fonts for those scripts. A font over 3 MB is saved in the Design file but is too big to be remembered after a reload, and a note says so.
+
+You are responsible for an imported font's licence when you sell prints. The 29 bundled fonts are all SIL OFL.
+
 ## Your settings files
 
 - `filaments.json`: the filament colours you stock (hex plus Thai and English names). Swatches, colour pairs and the order sheet use it.

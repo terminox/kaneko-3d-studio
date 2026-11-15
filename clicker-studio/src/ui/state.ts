@@ -174,6 +174,10 @@ export function switchKind(kind: Kind) {
   } else {
     d.keys = [proto];
   }
+  if (old.userFonts?.length) {
+    d.userFonts = old.userFonts;
+    for (const f of old.userFonts) d.files[f.id] = old.files[f.id];
+  }
   state.design = d;
   state.selectedKey = 0;
   state.traced = {};

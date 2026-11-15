@@ -2,6 +2,7 @@
 import "./style.css";
 import { newDesign, type Design } from "../design/types.ts";
 import { t, tr, setLang } from "../i18n/strings.ts";
+import { registerDesignFonts } from "./user-fonts.ts";
 import { button, download, h, pickFile, segmented } from "./dom.ts";
 import { changed, rerender, save, selectedPatches, selectionChanged, state, subscribe, upgrade } from "./state.ts";
 import { Viewport } from "./viewport.ts";
@@ -55,6 +56,7 @@ const designActions = {
       const d = JSON.parse(await f.text()) as Design;
       if (!d.kind || !d.keys) throw new Error("not a Clicker Design file");
       state.design = upgrade(d);
+      registerDesignFonts(state.design);
       state.editing = null;
       state.traced = {};
       state.selected = [];
@@ -361,6 +363,7 @@ async function fontFaces() {
   } catch {
     // Without the manifest the picker still works, just without previews.
   }
+  registerDesignFonts(state.design);
 }
 
 async function start() {

@@ -178,6 +178,8 @@ export type Design = {
   fit: Fit;
   /** Embedded files (images, models) as data URLs, by id. */
   files: Record<string, string>;
+  /** Fonts the owner imported; the bytes are in `files` under `id`. */
+  userFonts?: { id: string; name: string }[];
   /** Switches the last build placed under the shared cap. Derived; the price and order sheet read it. */
   placedSwitches?: number;
 };

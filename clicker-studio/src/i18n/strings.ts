@@ -85,6 +85,10 @@ const S = {
 
   "font.label": ["ฟอนต์", "Font"],
   "font.hint": ["ตัวอักษรที่ฟอนต์ไม่มี ระบบใช้ฟอนต์ภาษานั้นให้เอง", "Characters the font lacks use a font for that script"],
+  "font.yours": ["ฟอนต์ของคุณ", "Your fonts"],
+  "font.import": ["นำเข้าฟอนต์ (TTF/OTF)", "Import font (TTF/OTF)"],
+  "font.licence": ["คุณรับผิดชอบเรื่องลิขสิทธิ์ของฟอนต์ที่นำเข้าเมื่อขายงานพิมพ์", "You are responsible for an imported font's licence when you sell prints"],
+  "font.big": ["เก็บไว้ในไฟล์ Design แล้ว แต่ใหญ่เกินกว่าจะจำไว้หลังโหลดหน้าใหม่", "Saved in Design files, but too big to be remembered after a reload."],
   "font.latin": ["อังกฤษ", "English"],
   "font.thai": ["ไทย + อังกฤษ", "Thai + English"],
   "font.korean": ["เกาหลี", "Korean"],

@@ -59,11 +59,10 @@ if (!designs.length) {
 }
 
 await loadKernel();
-const assets = nodeAssets();
 const groups: Group[] = [];
 for (const d of designs) {
   const t = performance.now();
-  const r = await build(d, assets);
+  const r = await build(d, nodeAssets(d.files));
   for (const w of r.warnings) console.warn(`  ${d.name}: ${w}`);
   groups.push(...r.print.map((g) => ({ ...g, name: designs.length > 1 ? `${d.name} · ${g.name}` : g.name })));
   console.log(`${d.name} (${d.kind}): ${r.print.length} pieces in ${(performance.now() - t).toFixed(0)} ms`);

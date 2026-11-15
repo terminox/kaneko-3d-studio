@@ -13,6 +13,7 @@ import { button, field, h, pickFile, readDataUrl, section, segmented, slider, sw
 import { changed, rerender, selectedPatches, selectionChanged, state, switchKind } from "./state.ts";
 import { cartoonize, cropDialog, loadImage, retracePicture, retraceKeyImages } from "./picture-ui.ts";
 import { MAX_HEIGHT, TALL, colourHeight, emptyHeights, flatten, makeItPop, remapHeights, resetPatches, setColourHeight, setPatchHeights } from "../design/heights.ts";
+import { hasBigFont, importFont } from "./user-fonts.ts";
 import { orderActions } from "./order-ui.ts";
 import { SIDES, pinSide } from "../design/connectors.ts";
 
@@ -168,6 +169,7 @@ function refreshChips() {
       state.selectedKey = i;
       rerender();
     });
+    if (k.deco.type === "text") b.style.fontFamily = `"cs-${k.deco.font}"`;
     chipHost!.append(b);
   });
 }
@@ -456,8 +458,29 @@ function fontPicker(value: string, onPick: (name: string) => void): HTMLElement 
     }
     sel.append(group);
   }
+  const mine = d().userFonts ?? [];
+  if (mine.length) {
+    const group = h("optgroup", { attrs: { label: t("font.yours") } });
+    for (const f of mine) {
+      const o = h("option", { attrs: { value: f.id, selected: f.id === value } }, f.name);
+      o.style.fontFamily = `"cs-${f.id}"`;
+      group.append(o);
+    }
+    sel.append(group);
+  }
   sel.addEventListener("change", () => onPick(sel.value));
-  return field(t("font.label"), sel, t("font.hint"));
+  const wrap = h("div", {}, field(t("font.label"), sel, t("font.hint")));
+  wrap.append(
+    button(`🔤 ${t("font.import")}`, async () => {
+      const f = await pickFile(".ttf,.otf");
+      if (!f) return;
+      onPick(await importFont(d(), f));
+      rerender();
+    }, "block"),
+    h("p", { class: "muted", text: t("font.licence") }),
+  );
+  if (hasBigFont(d())) wrap.append(h("p", { class: "muted", text: t("font.big") }));
+  return wrap;
 }
 
 function iconPicker(value: string, onPick: (id: string) => void): HTMLElement {
