@@ -76,6 +76,15 @@ The font is stored inside the Design file, so Save and Open keep it. Characters 
 
 You are responsible for an imported font's licence when you sell prints. The 29 bundled fonts are all SIL OFL.
 
+## Preview
+
+The preview has three views, like PrintPal's. **Assembled** shows the Clicker at rest. **Apart** lifts the caps, or a split model's top half, off the Base by a Distance of 0–40 mm (16 to start), so you can see what sits between them. **As printed** shows the parts as they lie on the bed.
+
+- **Slice** cuts the shown model across X, Y or Z, at any Position from one side to the other. The cut faces are drawn flat, in a darker shade of each part's colour. It works in every view, Apart included.
+- **Show switch** puts a see-through MX switch in each pocket. Its pocket, top housing and stem sizes come from the Fit panel, so a slice shows how the cap clears the switch you set up. It stays with the Base in the Apart view.
+- Taps on the model work in Apart too: picking a picture patch, or setting a split model's seam.
+- On an iPad the sliders and the X, Y and Z buttons sit over the preview, big enough to tap.
+
 ## Your settings files
 
 - `filaments.json`: the filament colours you stock (hex plus Thai and English names). Swatches, colour pairs and the order sheet use it.

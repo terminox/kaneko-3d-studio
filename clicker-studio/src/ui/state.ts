@@ -7,8 +7,7 @@ import type { BuildReply } from "../worker.ts";
 import type { Lang } from "../i18n/strings.ts";
 import { PAIRS } from "../design/palette.ts";
 import { samePt, type PatchInfo } from "../design/heights.ts";
-
-export type View = "assembled" | "print";
+import type { Slice, View } from "./viewport.ts";
 
 /** A picked patch: its owner (-1 = the picture, else a key) and its point (see PatchInfo). */
 export type Selected = { owner: number; at: [number, number] };
@@ -19,7 +18,9 @@ export type State = {
   mode: "simple" | "advanced";
   lang: Lang;
   view: View;
-  section: boolean;
+  /** How far the Apart view lifts the top parts, mm. */
+  apart: number;
+  slice: Slice & { on: boolean };
   showSwitch: boolean;
   order: Order;
   /** Index in the Order of the item being edited, if any. */
@@ -63,7 +64,8 @@ export const state: State = {
   mode: load("mode", "simple"),
   lang: load("lang", "th"),
   view: "assembled",
-  section: false,
+  apart: 16,
+  slice: { on: false, axis: "y", at: 0.5 },
   showSwitch: false,
   order: load("order", newOrder()),
   editing: null,

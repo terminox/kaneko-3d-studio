@@ -16,8 +16,11 @@ import { buildChain, chainPitch } from "./chain.ts";
 import { modelSpec } from "./model-cap.ts";
 import { splitModel, type SplitInfo } from "./split.ts";
 
-/** `role` "support": a slicer support-enforcer volume, not printed and not shown. */
-export type Part = { name: string; color: string; mesh: Mesh; role?: "support" };
+/**
+ * `role` "support": a slicer support-enforcer volume, not printed and not shown.
+ * `half` "top": a part the preview's Apart view lifts (caps, a split model's top half). Assembled parts only.
+ */
+export type Part = { name: string; color: string; mesh: Mesh; role?: "support"; half?: "top" };
 
 /** Where the preview's keychain hangs: a loop or a tab hole, the way it leaves the Base (unit vector), and its height. */
 export type Keyring = { at: [number, number]; dir: [number, number]; z: number };
@@ -180,7 +183,7 @@ export async function build(design: Design, assets: Assets): Promise<BuildResult
       const g = buildCap(c.outline, design.kind === "model" ? { ...cap, style: "raised" } : cap, fit, c.key.capColor, c.deco, keyRings(c.key, c.deco, design), c.label, undefined, c.inset, c.switches);
       // A 3D model stands on the cap top, fused into the cap.
       if (c.extra) g.solids[0].m = g.solids[0].m.add(c.extra.translate([0, 0, g.top - 0.2]));
-      for (const s of g.solids) assembled.push(part(s, c.at));
+      for (const s of g.solids) assembled.push(part(s, c.at, "top"));
       patches.push(...capPatches(c, g.top, design.kind === "picture" ? -1 : i, Math.max(0.4, cap.decoHeight), cap.style === "inlay"));
       // Print: raised caps stand on their skirt; inlaid caps lie face down.
       const flip = cap.style === "inlay";
@@ -243,11 +246,11 @@ function buildSplit(design: Design, assets: Assets): BuildResult {
   const halves = s
     ? [
         { name: "Bottom half", color: design.baseColor, m: s.bottom, want: design.parts !== "caps" },
-        { name: "Top half", color: design.keys[0].capColor, m: s.top, want: design.parts !== "base" },
+        { name: "Top half", color: design.keys[0].capColor, m: s.top, want: design.parts !== "base", half: "top" as const },
       ].filter((x) => x.want && !x.m.isEmpty())
     : [];
   return {
-    assembled: halves.map((x) => part(x, [0, 0])),
+    assembled: halves.map((x) => part(x, [0, 0], x.half)),
     print: halves.map((x) => ({ name: x.name, parts: [{ name: x.name, color: x.color, mesh: toMesh(x.m) }] })),
     warnings: [...new Set(warnings)],
     switches: s?.switches ?? [],
@@ -293,8 +296,8 @@ function keyringPoint(loops: [number, number][], joints: Joint[], foot: CrossSec
   return tab ? { at: holeCentre(tab), dir: sideDir(tab.side), z: bottom + (H.tabZ[0] + H.tabZ[1]) / 2 } : null;
 }
 
-function part(s: Solid, at: [number, number]): Part {
-  return { name: s.name, color: s.color, mesh: toMesh(at[0] || at[1] ? s.m.translate([at[0], at[1], 0]) : s.m) };
+function part(s: Solid, at: [number, number], half?: "top"): Part {
+  return { name: s.name, color: s.color, mesh: toMesh(at[0] || at[1] ? s.m.translate([at[0], at[1], 0]) : s.m), ...(half && { half }) };
 }
 
 export type Plate = {

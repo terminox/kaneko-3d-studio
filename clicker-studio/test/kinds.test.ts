@@ -51,6 +51,17 @@ describe("parts modes", () => {
   });
 });
 
+test("the Apart view lifts every cap part and leaves the Base", async () => {
+  for (const kind of ["cap", "row"] as const) {
+    const r = await build(newDesign(kind), assets);
+    const lifted = r.assembled.filter((p) => p.half === "top").map((p) => p.name);
+    expect(lifted.length).toBeGreaterThan(0);
+    expect(lifted.every((n) => !n.startsWith("Base"))).toBe(true);
+    expect(r.assembled.find((p) => p.name === "Base")?.half).toBeUndefined();
+    expect(r.print.flatMap((g) => g.parts).every((p) => p.half === undefined)).toBe(true);
+  }
+});
+
 describe("layouts", () => {
   for (const layout of ["column", "grid", "wasd", "arrows", "t", "custom"] as Design["layout"][]) {
     test(`${layout} builds one pocket per key`, async () => {

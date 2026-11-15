@@ -127,21 +127,23 @@ function nodes(...xs: (Node | null | false | undefined)[]): Node[] {
 }
 
 function renderStageTools() {
+  const { slice } = state;
   stageTools.replaceChildren(...nodes(
     segmented(
       [
         { value: "assembled", label: t("view.assembled"), icon: "🔗" },
+        { value: "apart", label: t("view.apart"), icon: "↕" },
         { value: "print", label: t("view.print"), icon: "🧩" },
       ],
       state.view,
       (v) => {
-        state.view = v as typeof state.view;
+        state.view = v;
         showModel();
         paintHighlight();
         renderStageTools();
       },
     ),
-    state.view === "assembled"
+    state.view !== "print"
       ? button(`🔩 ${t("view.switch")}`, () => {
           state.showSwitch = !state.showSwitch;
           viewport.showSwitch = state.showSwitch;
@@ -149,22 +151,58 @@ function renderStageTools() {
           renderStageTools();
         }, state.showSwitch ? "ghost on" : "ghost")
       : null,
-    button(`✂ ${t("view.section")}`, () => {
-      state.section = !state.section;
-      viewport.section = state.section;
-      showModel();
+    button(`✂ ${t("view.slice")}`, () => {
+      slice.on = !slice.on;
+      paintSlice();
       renderStageTools();
-    }, state.section ? "ghost on" : "ghost"),
+    }, slice.on ? "ghost on" : "ghost"),
     button(`⤢ ${t("view.reset")}`, () => viewport.resetView()),
+    state.view === "apart" || slice.on
+      ? h("div", { class: "stage-sliders" }, ...nodes(
+          state.view === "apart"
+            ? stageRange(t("view.apartBy"), state.apart, 40, "mm", (v) => {
+                state.apart = v;
+                viewport.setApart(v);
+              })
+            : null,
+          slice.on
+            ? stageRange(t("view.sliceAt"), Math.round(slice.at * 100), 100, "%", (v) => {
+                slice.at = v / 100;
+                paintSlice();
+              }, segmented((["x", "y", "z"] as const).map((a) => ({ value: a, label: a.toUpperCase() })), slice.axis, (a) => {
+                slice.axis = a;
+                paintSlice();
+              }, "small"))
+            : null,
+        ))
+      : null,
   ));
   paintHint();
+}
+
+/** A labelled slider over the preview, from 0 to `max`. It acts live and never re-renders the tools, so a drag runs on. */
+function stageRange(label: string, value: number, max: number, unit: string, onInput: (v: number) => void, lead?: Node): HTMLElement {
+  const out = h("output", { text: `${value} ${unit}` });
+  const range = h("input", { attrs: { type: "range", min: 0, max, value, "aria-label": label } });
+  range.addEventListener("input", () => {
+    const v = Number(range.value);
+    out.textContent = `${v} ${unit}`;
+    onInput(v);
+  });
+  return h("div", { class: "stage-range" }, ...nodes(lead, h("span", { text: label }), range, out));
+}
+
+function paintSlice() {
+  const { on, axis, at } = state.slice;
+  viewport.setSlice(on ? { axis, at } : null);
 }
 
 function paintHint() {
   const assembled = state.view !== "print";
   const pickable = assembled && Boolean(state.build?.patches.length);
   const seam = assembled && Boolean(state.build?.split);
-  stage.querySelector(".stage-hint")!.textContent = `${t(assembled ? "view.hint" : "view.printHint")}${pickable ? ` · ${t("view.pickHint")}` : ""}${seam ? ` · ${t("view.seamHint")}` : ""}`;
+  const view = { assembled: "view.hint", apart: "view.apartHint", print: "view.printHint" } as const;
+  stage.querySelector(".stage-hint")!.textContent = `${t(view[state.view])}${pickable ? ` · ${t("view.pickHint")}` : ""}${seam ? ` · ${t("view.seamHint")}` : ""}`;
 }
 
 function renderPanels() {
@@ -194,7 +232,8 @@ function showModel(frame = false) {
   const b = state.build;
   if (!b) return;
   const parts = state.view === "print" ? (b.plates[0]?.groups.flatMap((g) => g.parts).filter((p) => p.role !== "support") ?? []) : b.assembled;
-  viewport.show({ parts, switches: b.switches, keyring: b.keyring, bottom: b.bottom, chain: state.design.chain, printLayout: state.view === "print" }, frame);
+  viewport.setApart(state.view === "apart" ? state.apart : 0);
+  viewport.show({ parts, switches: b.switches, keyring: b.keyring, bottom: b.bottom, chain: state.design.chain, fit: state.design.fit, view: state.view }, frame);
   const s = viewport.size();
   const plates = b.plates.length > 1 ? ` · ${b.plates.length} ${t("status.plates")}` : "";
   dims.textContent = s ? `${s.x.toFixed(0)} × ${s.y.toFixed(0)} × ${s.z.toFixed(1)} mm${plates}` : "";
@@ -219,7 +258,7 @@ function heightsOf(owner: number): LayerHeights | null {
 }
 
 function paintHighlight() {
-  const sel = state.view === "assembled" ? selectedPatches() : [];
+  const sel = state.view !== "print" ? selectedPatches() : [];
   viewport.highlight(sel);
   if (!sel.length) pickSeveral = false;
   stage.classList.toggle("picking", sel.length > 0);
@@ -258,7 +297,7 @@ function paintHighlight() {
 /** Split a model: a tap on the model puts the seam at that height. The top half rests a gap higher, and a tap inside the gap changes nothing. */
 function pickSeam(hit: [number, number, number] | null) {
   const s = state.build?.split, sp = state.design.split;
-  if (state.view !== "assembled" || !hit || !s || !sp) return;
+  if (state.view === "print" || !hit || !s || !sp) return;
   const z = hit[2] <= s.seamZ ? hit[2] : hit[2] >= s.seamZ + s.gap ? hit[2] - s.gap : null;
   if (z === null) return;
   sp.at = Math.min(0.98, Math.max(0.02, (z - s.modelZ0) / s.height));
@@ -269,7 +308,7 @@ function pickSeam(hit: [number, number, number] | null) {
 viewport.onPick = (hit, shiftKey) => {
   if (state.design.kind === "split") return pickSeam(hit);
   const patches = state.build?.patches ?? [];
-  if (state.view !== "assembled" || !patches.length) return;
+  if (state.view === "print" || !patches.length) return;
   const shift = shiftKey || pickSeveral;
   const p = hit ? patchAt(patches, hit) : null;
   if (!p) {

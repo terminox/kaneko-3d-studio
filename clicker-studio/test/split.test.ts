@@ -105,6 +105,12 @@ describe("Split a model", () => {
     }
   });
 
+  test("the Apart view lifts the top half and leaves the bottom half with the switches", async () => {
+    const { r } = await halves(splitDesign(egg(), 44));
+    expect(r.assembled.map((p) => [p.name, p.half])).toEqual([["Bottom half", undefined], ["Top half", "top"]]);
+    expect(r.print.flatMap((g) => g.parts).every((p) => p.half === undefined)).toBe(true);
+  });
+
   test("a round egg stands on a point until Flat bottom cuts it", async () => {
     expect((await build(splitDesign(egg(), 44, {}, 0), assets)).warnings).toContain("warn.splitSmallFoot");
     expect((await build(splitDesign(egg(), 44, {}, 0.15), assets)).warnings).not.toContain("warn.splitSmallFoot");

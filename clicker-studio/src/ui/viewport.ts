@@ -1,10 +1,17 @@
-// three.js preview: assembled Clicker or the print layout, with an optional
-// cut-away, switch ghosts and a keychain prop. Z is up, as in Bambu Studio.
+// three.js preview: the Clicker assembled, pulled apart or laid out for print,
+// with an optional slice, switch ghosts and a keychain prop. Z is up, as in Bambu Studio.
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import type { Keyring, Part } from "../geometry/build.ts";
+import type { Fit } from "../geometry/switch.ts";
 import type { Ring } from "../geometry/path.ts";
 import { pointInRings, signedArea } from "../design/heights.ts";
+
+/** "print": the parts as they lie on the bed. "apart": assembled, with the top parts lifted. */
+export type View = "assembled" | "apart" | "print";
+export type Axis = "x" | "y" | "z";
+/** A cut across one axis, `at` 0–1 of the way across the shown model. */
+export type Slice = { axis: Axis; at: number };
 
 export type Scene = {
   parts: Part[];
@@ -12,9 +19,22 @@ export type Scene = {
   keyring: Keyring | null;
   bottom: number;
   chain: "ball" | "cord" | "none";
-  /** True for the print layout (parts already on the bed). */
-  printLayout: boolean;
+  fit: Fit;
+  view: View;
 };
+
+/** MX sizes no Fit setting holds: the bottom housing under the plate, and the centre post below it. */
+const MX = { body: 5, post: 4, postLength: 3.3 };
+
+/** The normal of the half each slice keeps: it drops the half nearest the camera's starting spot, so the cut faces the viewer. */
+const KEEP: Record<Axis, [number, number, number]> = { x: [-1, 0, 0], y: [0, 1, 0], z: [0, 0, -1] };
+
+/** A cut face's flat colour: the part's colour, darker (lighter on dark parts) so it stands out from lit faces. */
+function cutColour(color: string | number): THREE.Color {
+  const c = new THREE.Color(color);
+  const { h, s, l } = c.getHSL({ h: 0, s: 0, l: 0 }, THREE.SRGBColorSpace);
+  return c.setHSL(h, s, l < 0.3 ? l + 0.25 : l * 0.6, THREE.SRGBColorSpace);
+}
 
 export class Viewport {
   private renderer: THREE.WebGLRenderer;
@@ -25,15 +45,17 @@ export class Viewport {
   private extras = new THREE.Group();
   /** Highlights over picked patches. */
   private marks = new THREE.Group();
+  private clip = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   // Drawn just above each top, depth-tested so taller patches in front hide them.
-  private markFill = new THREE.MeshBasicMaterial({ color: 0x7c4dff, transparent: true, opacity: 0.2, depthWrite: false, side: THREE.DoubleSide });
-  private markLine = new THREE.LineBasicMaterial({ color: 0xffffff, depthWrite: false });
+  private markFill = new THREE.MeshBasicMaterial({ color: 0x7c4dff, transparent: true, opacity: 0.2, depthWrite: false, side: THREE.DoubleSide, clippingPlanes: [this.clip] });
+  private markLine = new THREE.LineBasicMaterial({ color: 0xffffff, depthWrite: false, clippingPlanes: [this.clip] });
   private raycaster = new THREE.Raycaster();
   private grid: THREE.Group;
-  private clip = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   private framedSize = 0;
-  private lastPrint: boolean | null = null;
-  section = false;
+  private lastView: View | null = null;
+  private slice: Slice | null = null;
+  /** How far the Apart view lifts the top parts. */
+  private lift = 0;
   showSwitch = false;
   /** Called on a click (not a drag) with the point hit on the model (model frame), or null. */
   onPick: ((hit: [number, number, number] | null, shift: boolean) => void) | null = null;
@@ -41,7 +63,6 @@ export class Viewport {
   constructor(private host: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, alpha: true });
     this.renderer.setPixelRatio(window.devicePixelRatio);
-    this.renderer.localClippingEnabled = true;
     host.appendChild(this.renderer.domElement);
 
     THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
@@ -107,8 +128,7 @@ export class Viewport {
       color,
       roughness: 0.82,
       metalness: 0,
-      side: THREE.DoubleSide,
-      clippingPlanes: this.section ? [this.clip] : [],
+      clippingPlanes: [this.clip],
       ...opts,
     });
   }
@@ -127,14 +147,21 @@ export class Viewport {
   show(s: Scene, frame = false) {
     this.clear(this.model);
     this.clear(this.extras);
-    for (const { color, mesh } of s.parts) {
+    for (const { color, mesh, half } of s.parts) {
       const geo = new THREE.BufferGeometry();
       geo.setAttribute("position", new THREE.BufferAttribute(mesh.vertices, 3));
       geo.setIndex(new THREE.BufferAttribute(mesh.triangles, 1));
       const flat = geo.toNonIndexed();
       flat.computeVertexNormals();
       geo.dispose();
-      this.model.add(new THREE.Mesh(flat, this.material(color)));
+      const part = new THREE.Mesh(flat, this.material(color));
+      // Through a slice the part's inside faces show; drawn flat, they read as the cut face.
+      // Pulled forward so they win over a neighbour's faces that touch them (an inlay in its pocket).
+      const cut = new THREE.Mesh(flat, new THREE.MeshBasicMaterial({ color: cutColour(color), side: THREE.BackSide, clippingPlanes: [this.clip], polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 }));
+      cut.userData.cut = true;
+      part.userData.top = cut.userData.top = half === "top";
+      part.add(cut);
+      this.model.add(part);
     }
     this.model.position.set(0, 0, 0);
     const box = new THREE.Box3().setFromObject(this.model);
@@ -144,26 +171,60 @@ export class Viewport {
     const shift = new THREE.Vector3(-c.x, -c.y, -box.min.z);
     this.model.position.copy(shift);
     this.extras.position.copy(shift);
-    this.clip.constant = 0;
-    if (!s.printLayout) {
-      if (this.showSwitch) for (const at of s.switches) this.extras.add(this.switchGhost(at));
+    if (s.view !== "print") {
+      if (this.showSwitch) for (const at of s.switches) this.extras.add(this.switchGhost(at, s.fit));
       if (s.chain !== "none" && s.keyring) this.extras.add(this.chain(s.keyring, s.chain));
     }
+    this.setApart(this.lift);
     const placed = new THREE.Box3().setFromObject(this.model);
     const extent = placed.getSize(new THREE.Vector3()).length();
-    const modeChanged = this.lastPrint !== s.printLayout;
-    this.lastPrint = s.printLayout;
-    if (frame || modeChanged || !this.framedSize || extent > this.framedSize * 1.35 || extent < this.framedSize * 0.5) this.frame(placed);
+    const viewChanged = this.lastView !== s.view;
+    this.lastView = s.view;
+    if (frame || viewChanged || !this.framedSize || extent > this.framedSize * 1.35 || extent < this.framedSize * 0.5) this.frame(placed);
   }
 
-  /** The first point of the model under the pointer, in model frame. */
+  /** Lifts the top parts (caps, a split model's top half) this far above the rest. The switch ghosts stay down. */
+  setApart(mm: number) {
+    this.lift = mm;
+    for (const m of this.model.children) if (m.userData.top) m.position.z = mm;
+    this.marks.position.set(this.model.position.x, this.model.position.y, this.model.position.z + mm);
+    this.placeSlice();
+  }
+
+  setSlice(slice: Slice | null) {
+    this.slice = slice;
+    this.placeSlice();
+  }
+
+  /** Puts the slice plane across the model as shown, lifted parts included, and shows the cut faces. */
+  private placeSlice() {
+    const on = this.slice !== null;
+    this.renderer.localClippingEnabled = on;
+    this.model.traverse((o) => {
+      if (o.userData.cut) o.visible = on;
+    });
+    const box = new THREE.Box3().setFromObject(this.model);
+    if (!this.slice || box.isEmpty()) return;
+    const { axis, at } = this.slice;
+    const point = box.getCenter(new THREE.Vector3());
+    point[axis] = box.min[axis] + at * (box.max[axis] - box.min[axis]);
+    this.clip.setFromNormalAndCoplanarPoint(new THREE.Vector3(...KEEP[axis]), point);
+  }
+
+  /** The first point of the model under the pointer, in model frame as assembled (the Apart lift taken off). */
   private hit(e: PointerEvent): [number, number, number] | null {
     const r = this.renderer.domElement.getBoundingClientRect();
     const ndc = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
     this.raycaster.setFromCamera(ndc, this.camera);
-    const [first] = this.raycaster.intersectObjects(this.model.children, false);
+    // The raycaster ignores clipping: skip what the slice hides.
+    const first = this.raycaster
+      .intersectObjects(this.model.children, true)
+      .find((x) => x.object.visible && (!this.slice || this.clip.distanceToPoint(x.point) >= 0));
     if (!first) return null;
-    const p = first.point.sub(this.model.position);
+    // A cut face is drawn by the part's far inside faces; the point seen is on the plane.
+    const seen = (first.object.userData.cut && this.raycaster.ray.intersectPlane(this.clip, new THREE.Vector3())) || first.point;
+    const p = seen.sub(this.model.position);
+    if (first.object.userData.top) p.z -= this.lift;
     return [p.x, p.y, p.z];
   }
 
@@ -172,7 +233,6 @@ export class Viewport {
     // The materials are shared, so only the geometry is disposed.
     this.marks.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
     this.marks.clear();
-    this.marks.position.copy(this.model.position);
     for (const p of patches) {
       const v = (r: Ring) => r.map(([x, y]) => new THREE.Vector2(x, y));
       const outers = p.rings.filter((r) => signedArea(r) > 0);
@@ -193,21 +253,28 @@ export class Viewport {
     }
   }
 
-  /** A simplified MX switch: housings and stem, see-through. */
-  private switchGhost(at: [number, number]): THREE.Group {
+  /** An MX switch at rest, see-through, sized by the Fit the cap and Base were built around. */
+  private switchGhost(at: [number, number], fit: Fit): THREE.Group {
     const g = new THREE.Group();
-    const mat = this.material(0x8fd3c8, { transparent: true, opacity: 0.55 });
-    const stemMat = this.material(0xd94b4b, { transparent: true, opacity: 0.85 });
-    const add = (w: number, d: number, h: number, z: number, m: THREE.Material) => {
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, d, h), m);
-      mesh.position.set(at[0], at[1], z + h / 2);
+    const mat = this.material(0x8fd3c8, { transparent: true, opacity: 0.55, side: THREE.DoubleSide });
+    const stemMat = this.material(0xd94b4b, { transparent: true, opacity: 0.85, side: THREE.DoubleSide });
+    /** Adds `geo` with its bottom at `z`. */
+    const add = (geo: THREE.BufferGeometry, z: number, m: THREE.Material) => {
+      geo.computeBoundingBox();
+      const mesh = new THREE.Mesh(geo, m);
+      mesh.position.set(at[0], at[1], z - geo.boundingBox!.min.z);
       g.add(mesh);
     };
-    add(14, 14, 5, -6.5, mat); // bottom housing below the plate
-    add(15.2, 15.2, 1, 0, mat);
-    add(13, 13, 5.6, 1, mat);
-    add(4, 1.2, 5, 6.6, stemMat);
-    add(1.2, 4, 5, 6.6, stemMat);
+    const below = fit.plate + MX.body;
+    add(new THREE.BoxGeometry(fit.pocket, fit.pocket, below), -below, mat);
+    add(new THREE.CylinderGeometry(MX.post / 2, MX.post / 2, MX.postLength, 24).rotateX(Math.PI / 2), -below - MX.postLength, mat);
+    // The top housing tapers from its plate seat to its top: a four-sided cylinder turned square to the axes.
+    const housing = new THREE.CylinderGeometry(fit.housingTop / Math.SQRT2, fit.housingBottom / Math.SQRT2, fit.housingHeight, 4).rotateX(Math.PI / 2).rotateZ(Math.PI / 4).toNonIndexed();
+    housing.computeVertexNormals();
+    add(housing, 0, mat);
+    const stem = fit.stemTop - fit.housingHeight;
+    add(new THREE.BoxGeometry(fit.crossLength, fit.crossWidth, stem), fit.housingHeight, stemMat);
+    add(new THREE.BoxGeometry(fit.crossWidth, fit.crossLength, stem), fit.housingHeight, stemMat);
     return g;
   }
 
@@ -242,8 +309,13 @@ export class Viewport {
     return g;
   }
 
+  /** The model's size as built, without the Apart lift. */
   size(): THREE.Vector3 | null {
-    const box = new THREE.Box3().setFromObject(this.model);
+    const box = new THREE.Box3();
+    for (const m of this.model.children as THREE.Mesh[]) {
+      m.geometry.computeBoundingBox();
+      box.union(m.geometry.boundingBox!);
+    }
     return box.isEmpty() ? null : box.getSize(new THREE.Vector3());
   }
 
