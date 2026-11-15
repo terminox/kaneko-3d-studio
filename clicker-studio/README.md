@@ -26,12 +26,27 @@ The preview needs WebGL. For the **AI cartoon** button, copy `.env.example` to `
 | Picture | Upload a picture. The cap and Base follow its outline, the picture splits into 1–7 colours, and a cap border of 0–3 mm is added around it, so the cap and Base grow with the border and the picture keeps its width (0 = the picture runs to the edge; under 0.8 mm warns), and the Switch goes at the widest point of the shape. |
 | Fluted chain | One scalloped Base per key, linked with 6–8 mm metal jump rings through a small loop on each side, or with H-connectors (below). |
 | 3D model | An STL/OBJ is rotated, scaled, cut flat and fused onto a standard cap pedestal. The model must be watertight. |
+| Split a model | An STL/OBJ is cut level into two halves with a switch inside (below). The whole top half presses. |
 
 "Parts to print" switches between Cap + Base, Caps only, the A–Z set (26 keycaps) and Base only.
 
 ## Switches under a large cap
 
-A big cap on one switch binds when pressed off-centre and lets its far edge droop, so a shared cap (Single key, Picture, 3D model) gets as many switches as its size needs, placed automatically ([ADR 0009](../docs/adr/0009-multi-switch-shared-caps.md)). The rule follows keyboards, which stabilise any key from 2u (38 mm) up: every point of the cap must lie within the **reach** (22 mm) of a switch. A 40 mm round cap keeps one switch, a 60 × 20 mm bar gets two, a 45 mm round cap three, a 50 mm square four. Positions come from the cap's shape (`src/geometry/switches.ts`): two go on the long axis, three or four balance the area, and every spot keeps the housing inside the cap wall and the pocket inside the Base, at least the **pitch** (18 mm) apart. The first switch sits where it always did; the others get a little extra stem fit so the cap never binds on print tolerance. Simple mode shows the count; Advanced mode can force 1–4 (it falls back to as many as fit and says so) and tunes reach, pitch and extra stem fit in the Fit panel. A cap that even four switches can't cover warns. Note that each extra switch adds its actuation force: two 45 g switches press at about 90 g.
+A big cap on one switch binds when pressed off-centre and lets its far edge droop, so a shared cap (Single key, Picture, 3D model, and a split model's top half) gets as many switches as its size needs, placed automatically ([ADR 0009](../docs/adr/0009-multi-switch-shared-caps.md)). The rule follows keyboards, which stabilise any key from 2u (38 mm) up: every point of the cap must lie within the **reach** (22 mm) of a switch. A 40 mm round cap keeps one switch, a 60 × 20 mm bar gets two, a 45 mm round cap three, a 50 mm square four. Positions come from the cap's shape (`src/geometry/switches.ts`): two go on the long axis, three or four balance the area, and every spot keeps the housing inside the cap wall and the pocket inside the Base, at least the **pitch** (18 mm) apart. The first switch sits where it always did; the others get a little extra stem fit so the cap never binds on print tolerance. Simple mode shows the count; Advanced mode can force 1–4 (it falls back to as many as fit and says so) and tunes reach, pitch and extra stem fit in the Fit panel. A cap that even four switches can't cover warns. Note that each extra switch adds its actuation force: two 45 g switches press at about 90 g.
+
+## Split a model
+
+Upload any watertight STL or OBJ, standing the way it is pressed, and it is cut level into a working clicker, like PrintPal's "Cut Into a Model" ([research](../docs/research/printpal-fidget-clicker-maker.md), [ADR 0015](../docs/adr/0015-split-a-model.md)). The bottom half holds the switch. The top half carries the stem socket and rests 4.6 mm (one travel plus the bottom gap) above the bottom half, so none of the model is lost, and fully pressed the halves close to 0.6 mm.
+
+- **Plug** (the default): the top half hangs a plug into a well in the bottom half, so it can't wobble and the switch is hidden. **Plain**: a flat seam, for smaller models.
+- The seam goes at the best spot automatically: the height nearest the middle with room for a switch. Drag Seam height, or tap the model in the assembled view, to move it. **Best spot** puts it back.
+- Switches are placed automatically under the top half, with the shared-cap rule (one, or up to four on a long model). Advanced mode can move them all in 0.5 mm steps, change the wall (1.6 mm) and force a count.
+- **Flat bottom** cuts the model's bottom off so the bottom half stands on the bed. A round bottom warns.
+- **Size** is the model's widest side, 25–150 mm. The card shows "Fits a switch from N mm", and **Make it fit** goes to that size. A fresh upload that is too small grows to it once.
+- The halves print as built: the top half stands on its face or plug. In the Plug style the face sticks out 2.4 mm past the plug, a short ledge printed without support.
+- Warnings say when no switch fits, when a pocket breaks through the bottom half, when the top half is too thin over a switch, and when the seam misses the model.
+
+Smallest warning-free blocks with the defaults (`bun scripts/min-sizes.ts`): Plain needs a 20 mm square section and 21 mm of height, Plug a 24.5 mm section and 20.5 mm. A round model needs a little more.
 
 ## H-connector
 
@@ -75,7 +90,8 @@ bun test                              # geometry, text, picture, switch placemen
 bun scripts/check-kinds.ts            # build one fixture per kind, slice each with the Bambu Studio CLI
 bun run make --text MAA --validate    # quick Design → out/*.3mf, sliced
 bun run make out/x.clicker.json       # a saved Design
-bun scripts/min-sizes.ts              # smallest warning-free cap size per shape
+bun run make --kind split --model egg.stl --split plain --validate   # split an STL
+bun scripts/min-sizes.ts              # smallest warning-free cap size per shape, and per split style
 ```
 
 ## Layout
@@ -83,8 +99,8 @@ bun scripts/min-sizes.ts              # smallest warning-free cap size per shape
 ```
 src/design/     types.ts (Design), palette.ts, price.ts, order.ts, heights.ts (layer height and part colour edits, picking)
 src/geometry/   kernel, switch (Fit), switches (where the switches go under a shared cap), outline,
-                cap, base, texture, layout, chain, model-cap, decoration, patches (picture islands
-                + heights), symbols, path (SVG paths), build.ts (Design → parts, plate packing)
+                cap, base, texture, layout, chain, model-cap, split (Split a model), decoration,
+                patches (picture islands + heights), symbols, path (SVG paths), build.ts (Design → parts, plate packing)
 src/text/       shape.ts: HarfBuzz text shaping with per-character font fallback
 src/picture/    process.ts: background removal, holes, Lab k-means colour split, tracing
 src/export/     bambu.ts (→ Model Maker's 3MF writer), template.ts

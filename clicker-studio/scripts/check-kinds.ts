@@ -35,6 +35,22 @@ function face(): Img {
   return { width: w, height: h, data };
 }
 
+/** Split a model: a 44 mm egg with a flat bottom, in two colours. */
+function splitEgg(style: "plug" | "plain") {
+  const egg = K().Manifold.sphere(1, 96).warp((v) => {
+    const s = 1 - 0.15 * v[2];
+    v[0] *= 20 * s;
+    v[1] *= 17 * s;
+    v[2] *= 25;
+  });
+  const d = newDesign("split");
+  d.files["model-egg"] = `data:model/stl;base64,${Buffer.from(writeBinaryStl([toMesh(egg)])).toString("base64")}`;
+  d.model = { file: "model-egg", name: "egg.stl", width: 44, cut: 0.1, rotate: [0, 0, 0] };
+  d.split = { ...d.split!, style };
+  d.keys[0].capColor = "#F7D046";
+  return { design: d, traced: {} };
+}
+
 /** `expect`: warnings the fixture is meant to raise. */
 const fixtures: Record<string, () => { design: Design; traced: Record<string, Traced>; expect?: string[] }> = {
   cap: () => {
@@ -113,6 +129,8 @@ const fixtures: Record<string, () => { design: Design; traced: Record<string, Tr
     d.keys[0].capColor = "#8A5A3C";
     return { design: d, traced: {} };
   },
+  "split-plug": () => splitEgg("plug"),
+  "split-plain": () => splitEgg("plain"),
   wide: () => {
     // A wide cap on two Switches: a 70 × 24 bar picture.
     const w = 280, h = 96;

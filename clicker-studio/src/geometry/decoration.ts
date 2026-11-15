@@ -2,7 +2,7 @@
 import type { Key } from "../design/types.ts";
 import type { FontSource } from "../text/shape.ts";
 import { textRings } from "../text/shape.ts";
-import { K, type CrossSection } from "./kernel.ts";
+import { K, type CrossSection, type Memo } from "./kernel.ts";
 import { offset, rings } from "./outline.ts";
 import { mapRings, pathToRings, type Ring } from "./path.ts";
 import { SYMBOLS, symbol, type SymbolName } from "./symbols.ts";
@@ -25,6 +25,8 @@ export type Assets = {
   font: FontSource;
   icon: (id: string) => Promise<IconData>;
   traced: Record<string, Traced>;
+  /** The worker's cache across builds (parsed models and what was worked out from them). */
+  memo?: Memo;
 };
 
 /** A coloured area on a cap top. Picture patches carry their own height (mm; 0 = flush) and where they came from. */

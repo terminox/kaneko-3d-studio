@@ -91,7 +91,7 @@ export const orderActions = {
 /** A readable name from the Design's text, e.g. "MAA" or "Picture 2". */
 function autoName(d: Design): string {
   const text = d.keys.map((k) => (k.deco.type === "text" ? k.deco.text : k.deco.type === "emoji" ? k.deco.emoji : "")).join("");
-  if (text.trim() && d.kind !== "picture" && d.kind !== "model") return text.slice(0, 24);
+  if (text.trim() && d.kind !== "picture" && d.kind !== "model" && d.kind !== "split") return text.slice(0, 24);
   return `${t(`kind.${d.kind}` as StringKey)} ${state.order.items.length + 1}`;
 }
 
@@ -105,13 +105,14 @@ function describe(d: Design): string {
     .filter(Boolean);
   const bits = [t(`kind.${d.kind}` as StringKey)];
   if (d.parts !== "cap+base") bits.push(t(`parts.${d.parts === "caps" ? "caps" : d.parts === "base" ? "base" : "az"}` as StringKey));
-  if (d.kind !== "picture" && d.kind !== "model") bits.push(`${t(`shape.${d.cap.shape}` as StringKey)} ${d.cap.size} mm`);
+  if (d.kind !== "picture" && d.kind !== "model" && d.kind !== "split") bits.push(`${t(`shape.${d.cap.shape}` as StringKey)} ${d.cap.size} mm`);
+  if (d.kind === "split" && d.model) bits.push(`${d.model.name} · ${d.model.width} mm · ${t(`split.${d.split?.style ?? "plug"}` as StringKey)}`);
   if (d.kind === "picture" && d.picture) bits.push(`${d.picture.width} mm · ${d.picture.colors} ${t("sheet.colours")}${d.picture.useCartoon ? " · AI" : ""}`);
   if (keys.length && d.kind !== "picture") bits.push(`“${keys.join(" ")}”`);
-  if (d.base.texture !== "none") bits.push(t(`texture.${d.base.texture}` as StringKey));
+  if (d.base.texture !== "none" && d.kind !== "split") bits.push(t(`texture.${d.base.texture}` as StringKey));
   if (d.kind === "fluted" && d.base.join === "connector") bits.push(t("join.connector"));
   const ends = SIDES.filter((s) => d.base.connectors[s] !== "none");
-  if (d.kind !== "fluted" && ends.length)
+  if (d.kind !== "fluted" && d.kind !== "split" && ends.length)
     bits.push(`${t("join.connector")}: ${ends.map((s) => `${t(`connector.${d.base.connectors[s]}` as StringKey)} ${t(`connector.${s}` as StringKey)}`).join(", ")}`);
   if (d.chain !== "none") bits.push(t(`chain.${d.chain}` as StringKey));
   return bits.join(" · ");

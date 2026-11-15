@@ -1,11 +1,12 @@
 // Geometry worker: builds Designs with manifold-3d off the main thread.
 import wasmUrl from "manifold-3d/manifold.wasm?url";
-import { loadKernel, release } from "./geometry/kernel.ts";
+import { loadKernel, release, type Memo } from "./geometry/kernel.ts";
 import { build, packPlates, type Group, type Keyring, type Part } from "./geometry/build.ts";
 import { parseIconSvg, type Assets, type Traced } from "./geometry/decoration.ts";
 import { platesTo3mf } from "./export/bambu.ts";
 import type { Design } from "./design/types.ts";
 import type { PatchInfo } from "./design/heights.ts";
+import type { SplitInfo } from "./geometry/split.ts";
 import { printTemplate } from "./export/template.ts";
 
 export type BuildRequest = { type: "build"; id: number; design: Design; traced: Record<string, Traced> };
@@ -31,6 +32,7 @@ export type BuildReply = {
   keyring: Keyring | null;
   bottom: number;
   patches: PatchInfo[];
+  split: SplitInfo | null;
   ms: number;
 };
 export type ExportReply = { type: "export"; id: number; data: Uint8Array; filaments: string[]; warnings: string[]; plates: number };
@@ -39,6 +41,8 @@ export type WorkerReply = BuildReply | ExportReply | ErrorReply;
 
 const base = new URL(import.meta.env.BASE_URL, self.location.origin).href;
 const kernel = loadKernel(wasmUrl);
+/** Parsed models and what was worked out from them, kept across jobs (plain data, so `release` can't free it). */
+const memo: Memo = new Map();
 
 function assets(traced: Record<string, Traced>): Assets {
   return {
@@ -53,6 +57,7 @@ function assets(traced: Record<string, Traced>): Assets {
       return parseIconSvg(await res.text());
     },
     traced,
+    memo,
   };
 }
 
@@ -88,6 +93,7 @@ async function runBuild() {
       keyring: r.keyring,
       bottom: r.bottom,
       patches: r.patches,
+      split: r.split ?? null,
       ms: performance.now() - t,
     };
     // The plate copies are new buffers; the assembled ones are too.

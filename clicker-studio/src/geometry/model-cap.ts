@@ -2,7 +2,7 @@
 // on a standard cap pedestal, so the Switch fit is the same as every other cap.
 import type { Design } from "../design/types.ts";
 import { parseBinaryStl, type Mesh } from "@mm/pipeline/mesh.ts";
-import { K, type CrossSection, type Manifold } from "./kernel.ts";
+import { K, keep, recall, type CrossSection, type Manifold, type Memo } from "./kernel.ts";
 import { circle, offset, roundConvex } from "./outline.ts";
 
 /** data:...;base64,xxx -> bytes. */
@@ -61,10 +61,18 @@ export function parseModel(bytes: Uint8Array, name: string): Mesh {
   }
 }
 
-export type ModelSpec = { outline: CrossSection; model: Manifold };
+/** Identifies the uploaded file and how it is turned, cut and sized: everything `loadModel` reads. */
+export function modelKey(design: Design): string {
+  const m = design.model;
+  return m ? `${m.file}:${design.files[m.file]?.length}|${m.rotate}|${m.cut}|${m.width}` : "";
+}
 
-/** The model, ready to sit on top of its cap pedestal, and the pedestal's outline. */
-export function modelSpec(design: Design, warnings: string[]): ModelSpec | null {
+/**
+ * The uploaded model as a solid: turned, its bottom cut flat at `cut`, scaled
+ * to `width` across its footprint, centred, standing on z = 0. Null (with a
+ * warning) when there is no model or it is not watertight.
+ */
+export function loadModel(design: Design, warnings: string[], memo?: Memo): Manifold | null {
   const m = design.model;
   const data = m && design.files[m.file];
   if (!m || !data) {
@@ -72,7 +80,9 @@ export function modelSpec(design: Design, warnings: string[]): ModelSpec | null 
     return null;
   }
   const { Manifold, Mesh: KMesh } = K();
-  const mesh = parseModel(dataUrlBytes(data), m.name);
+  // Parsing a big STL is the slow part of a build, and a slider drag rebuilds many times.
+  const file = `${m.file}:${data.length}`;
+  const mesh = recall<Mesh>(memo, "mesh", file) ?? keep(memo, "mesh", file, parseModel(dataUrlBytes(data), m.name));
   const kmesh = new KMesh({ numProp: 3, vertProperties: mesh.vertices, triVerts: mesh.triangles });
   kmesh.merge();
   let solid: Manifold;
@@ -94,8 +104,17 @@ export function modelSpec(design: Design, warnings: string[]): ModelSpec | null 
     warnings.push("warn.modelBroken");
     return null;
   }
+  return solid;
+}
+
+export type ModelSpec = { outline: CrossSection; model: Manifold };
+
+/** The model, ready to sit on top of its cap pedestal, and the pedestal's outline. */
+export function modelSpec(design: Design, warnings: string[], memo?: Memo): ModelSpec | null {
+  const model = loadModel(design, warnings, memo);
+  if (!model) return null;
   // The pedestal follows the model's footprint where it touches down, widened to hold the Switch.
-  const foot = solid.slice(0.05);
+  const foot = model.slice(0.05);
   const outline = roundConvex(offset(K().CrossSection.union([foot, circle(11)]), 0.6), 1.2);
-  return { outline, model: solid };
+  return { outline, model };
 }

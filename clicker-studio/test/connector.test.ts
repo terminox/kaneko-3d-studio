@@ -190,7 +190,7 @@ describe("H-connector", () => {
     test("a cap on two switches: top and bottom on the middle, not over a switch", () => {
       const o = centredOnSwitch(capOutline("capsule", 40, 2));
       const opts = newDesign("cap").base;
-      const sw = placeSwitches(o, baseFootprint([{ at: [0, 0], outline: o }], opts, fit), fit, opts, 0).at;
+      const sw = placeSwitches(o, baseFootprint([{ at: [0, 0], outline: o }], opts, fit), fit, baseLevels(opts, fit).wallTop, 0).at;
       expect(sw.length).toBe(2);
       const a = multi([{ at: [0, 0], outline: o, switches: sw }], { top: "tab", bottom: "socket" });
       expectCentred(a);

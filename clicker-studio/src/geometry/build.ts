@@ -14,6 +14,7 @@ import { TALL, type PatchInfo } from "../design/heights.ts";
 import { keyCells } from "./layout.ts";
 import { buildChain, chainPitch } from "./chain.ts";
 import { modelSpec } from "./model-cap.ts";
+import { splitModel, type SplitInfo } from "./split.ts";
 
 /** `role` "support": a slicer support-enforcer volume, not printed and not shown. */
 export type Part = { name: string; color: string; mesh: Mesh; role?: "support" };
@@ -38,6 +39,8 @@ export type BuildResult = {
   bottom: number;
   /** Picture patches, for picking in the preview (assembled frame). */
   patches: PatchInfo[];
+  /** Split a model: the seam and size, for the Split card and taps on the preview. */
+  split?: SplitInfo;
 };
 
 /** A picture border narrower than this (two 0.4 mm print lines) does not print cleanly. */
@@ -104,6 +107,7 @@ function pictureSpec(design: Design, assets: Assets): { outline: CrossSection; d
 }
 
 export async function build(design: Design, assets: Assets): Promise<BuildResult> {
+  if (design.kind === "split") return buildSplit(design, assets);
   const warnings: string[] = [];
   const { cap, base, fit } = design;
   const caps: CapSpec[] = [];
@@ -112,7 +116,7 @@ export async function build(design: Design, assets: Assets): Promise<BuildResult
   /** One shared cap at the origin, on as many Switches as its size needs (or as the owner forced). */
   const shared = (outline: CrossSection, spec: Omit<CapSpec, "outline" | "at" | "switches">) => {
     const foot = baseFootprint([{ at: [0, 0], outline }], base, fit);
-    const placed = placeSwitches(outline, foot, fit, base, cap.switches);
+    const placed = placeSwitches(outline, foot, fit, baseLevels(base, fit).wallTop, cap.switches);
     warnings.push(...placed.warnings);
     caps.push({ ...spec, outline, at: [0, 0], switches: placed.at });
     baseKeys = [{ at: [0, 0], outline, switches: placed.at }];
@@ -127,7 +131,7 @@ export async function build(design: Design, assets: Assets): Promise<BuildResult
     shared(outline, { key: design.keys[0], deco, label: "Top Cap", inset: cap.border });
     if (cap.border > 0 && cap.border < THIN_BORDER) warnings.push("warn.thinBorder");
   } else if (design.kind === "model") {
-    const ms = modelSpec(design, warnings);
+    const ms = modelSpec(design, warnings, assets.memo);
     const outline = ms?.outline ?? capOutline("circle", 26, 0);
     shared(outline, { key: design.keys[0], deco: [], label: "Top Cap", extra: ms?.model });
   } else if (design.kind === "cap") {
@@ -229,6 +233,29 @@ export async function build(design: Design, assets: Assets): Promise<BuildResult
     keyring,
     bottom,
     patches,
+  };
+}
+
+/** Split a model: the bottom half prints as built, and the top half stands on its seam face or plug, as a raised cap stands on its skirt. */
+function buildSplit(design: Design, assets: Assets): BuildResult {
+  const warnings: string[] = [];
+  const s = splitModel(design, warnings, assets.memo);
+  const halves = s
+    ? [
+        { name: "Bottom half", color: design.baseColor, m: s.bottom, want: design.parts !== "caps" },
+        { name: "Top half", color: design.keys[0].capColor, m: s.top, want: design.parts !== "base" },
+      ].filter((x) => x.want && !x.m.isEmpty())
+    : [];
+  return {
+    assembled: halves.map((x) => part(x, [0, 0])),
+    print: halves.map((x) => ({ name: x.name, parts: [{ name: x.name, color: x.color, mesh: toMesh(x.m) }] })),
+    warnings: [...new Set(warnings)],
+    switches: s?.switches ?? [],
+    switchesPerCap: s?.switches.length || 1,
+    keyring: null,
+    bottom: s?.info.modelZ0 ?? 0,
+    patches: [],
+    split: s?.info,
   };
 }
 

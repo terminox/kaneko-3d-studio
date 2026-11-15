@@ -81,6 +81,12 @@ export function baseSupports(keys: BaseKey[], opts: BaseOptions, fit: Fit, footp
     .map((j) => supportVolume(j, bottom));
 }
 
+/** What one Switch needs cut out of the body under it: the clip room below the plate, down to `floorZ`, and the plate cutout. */
+export function switchPocket(fit: Fit, at: [number, number], floorZ: number): Manifold[] {
+  const square = (w: number) => K().CrossSection.square([w, w], true).translate(at);
+  return [slab(square(fit.clipRoom), floorZ, -fit.plate), slab(square(fit.pocket), -fit.plate - 0.5, 0.5)];
+}
+
 /** A Base with a skirt room per key and a Switch Pocket per Switch. */
 export function buildBase(keys: BaseKey[], opts: BaseOptions, fit: Fit, footprint?: CrossSection): Manifold {
   const { CrossSection, Manifold } = K();
@@ -104,12 +110,7 @@ export function buildBase(keys: BaseKey[], opts: BaseOptions, fit: Fit, footprin
   for (const k of keys) {
     // Room above the plate for the cap skirt.
     cuts.push(slab(offset(k.outline, fit.clearance).translate(k.at), 0, wallTop + 1));
-    for (const s of keySwitches(k)) {
-      // Clip room under the plate for the bottom housing and pins.
-      cuts.push(slab(CrossSection.square([fit.clipRoom, fit.clipRoom], true).translate(s), bottom + opts.floor, -fit.plate));
-      // The plate cutout.
-      cuts.push(slab(CrossSection.square([fit.pocket, fit.pocket], true).translate(s), -fit.plate - 0.5, 0.5));
-    }
+    for (const s of keySwitches(k)) cuts.push(...switchPocket(fit, s, bottom + opts.floor));
   }
   for (const c of loops) cuts.push(slab(circle(holeR, c), bottom - 1, wallTop + 1));
   for (const j of sockets) cuts.push(socketCut(j, bottom));

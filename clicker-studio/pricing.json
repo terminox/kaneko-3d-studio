@@ -7,7 +7,8 @@
     "row": { "base": 39, "includedKeys": 1, "perExtraKey": 20 },
     "grid": { "base": 39, "includedKeys": 1, "perExtraKey": 20 },
     "fluted": { "base": 45, "includedKeys": 1, "perExtraKey": 25 },
-    "model": { "base": 79, "includedKeys": 1, "perExtraKey": 0 }
+    "model": { "base": 79, "includedKeys": 1, "perExtraKey": 0 },
+    "split": { "base": 99, "includedKeys": 1, "perExtraKey": 0 }
   },
   "parts": {
     "capsOnlyPerKey": 15,

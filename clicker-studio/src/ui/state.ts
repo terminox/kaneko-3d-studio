@@ -1,6 +1,6 @@
 // App state: the Design being edited, the Order, and view settings. Changes
 // call `changed()` (rebuild geometry) or `rerender()` (rebuild the panels too).
-import { newDesign, upgradeBase, DEFAULT_KEY, type Design, type Kind } from "../design/types.ts";
+import { newDesign, newSplit, upgradeBase, DEFAULT_KEY, type Design, type Kind } from "../design/types.ts";
 import { newOrder, type Order } from "../design/order.ts";
 import type { Traced } from "../geometry/decoration.ts";
 import type { BuildReply } from "../worker.ts";
@@ -34,6 +34,8 @@ export type State = {
   byColour: boolean;
   /** Patches picked in the preview, for their own height. */
   selected: Selected[];
+  /** Split a model: grow a just-uploaded model to the smallest size that fits a switch, once its first build says what that is. */
+  fitOnBuild: boolean;
 };
 
 const STORE = "clicker-studio:v1";
@@ -72,6 +74,7 @@ export const state: State = {
   cartoonEnabled: false,
   byColour: true,
   selected: [],
+  fitOnBuild: false,
 };
 
 /** Fills fields added after a Design was saved. */
@@ -85,6 +88,7 @@ export function upgrade(d: Design): Design {
     fit: { ...fresh.fit, ...d.fit },
     keys: (d.keys?.length ? d.keys : fresh.keys).map((k) => ({ ...DEFAULT_KEY, ...k })),
     files: d.files ?? {},
+    ...(d.kind === "split" ? { split: { ...newSplit(), ...d.split } } : {}),
   };
 }
 
@@ -159,8 +163,14 @@ export function switchKind(kind: Kind) {
       width: 40,
       useCartoon: false,
     };
-  } else if (kind === "model") {
+  } else if (kind === "model" || kind === "split") {
     d.keys = [{ ...proto, deco: { type: "none" } }];
+    // 3D model and Split a model share the upload, so it carries over (sized for the new kind).
+    if (old.model && old.files[old.model.file]) {
+      const [lo, hi] = kind === "split" ? [25, 150] : [20, 80];
+      d.model = { ...old.model, width: Math.min(hi, Math.max(lo, old.model.width)) };
+      d.files = { [old.model.file]: old.files[old.model.file] };
+    }
   } else {
     d.keys = [proto];
   }

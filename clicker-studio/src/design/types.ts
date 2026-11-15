@@ -2,7 +2,7 @@
 // `.clicker.json`, with its source images embedded.
 import { DEFAULT_FIT, type Fit } from "../geometry/switch.ts";
 
-export type Kind = "cap" | "picture" | "row" | "grid" | "fluted" | "model";
+export type Kind = "cap" | "picture" | "row" | "grid" | "fluted" | "model" | "split";
 
 export type CapShape =
   | "square"
@@ -135,10 +135,24 @@ export type ModelOptions = {
   file: string;
   name: string;
   width: number;
-  /** Height the model is cut at, as a share of its height (0 = keep all). */
+  /** Height the model is cut at, as a share of its height (0 = keep all). Split a model calls it Flat bottom. */
   cut: number;
   rotate: [number, number, number];
 };
+
+/** Split a model (ADR 0015): how the uploaded model in `Design.model` is cut into a bottom and a top half. */
+export type SplitOptions = {
+  /** plug: the top half hangs a plug into a well in the bottom half. plain: a flat seam. */
+  style: "plug" | "plain";
+  /** Seam height as a share of the model's height (after Flat bottom). null = the best spot, found automatically. */
+  at: number | null;
+  /** Moves every Switch from where it was placed (mm, x and y). */
+  nudge: [number, number];
+  /** Solid material kept round every cut, mm. */
+  wall: number;
+};
+
+export const newSplit = (): SplitOptions => ({ style: "plug", at: null, nudge: [0, 0], wall: 1.6 });
 
 export type Design = {
   version: 1;
@@ -157,6 +171,8 @@ export type Design = {
   baseColor: string;
   picture: PictureOptions | null;
   model: ModelOptions | null;
+  /** Split a model only. */
+  split?: SplitOptions;
   /** Keychain preview: ball chain, cord or nothing. Affects price only. */
   chain: "ball" | "cord" | "none";
   fit: Fit;
@@ -215,6 +231,7 @@ export function newDesign(kind: Kind = "cap"): Design {
     baseColor: "#FFFFFF",
     picture: null,
     model: null,
+    ...(kind === "split" ? { split: newSplit() } : {}),
     chain: "ball",
     fit: { ...DEFAULT_FIT },
     files: {},

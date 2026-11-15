@@ -1,7 +1,8 @@
 // The side panels. Each control edits state.design, then calls changed()
 // (geometry only) or rerender() (panels change shape too).
-import type { CapShape, Decoration, End, Design, Key, Kind, LayerHeights, Layout, Loop, PartsMode, Texture } from "../design/types.ts";
+import { newSplit, type CapShape, type Decoration, type End, type Design, type Key, type Kind, type LayerHeights, type Layout, type Loop, type ModelOptions, type PartsMode, type SplitOptions, type Texture } from "../design/types.ts";
 import { DEFAULT_FIT, type Fit } from "../geometry/switch.ts";
+import type { SplitInfo } from "../geometry/split.ts";
 import { layoutKeyCount } from "../geometry/layout.ts";
 import { SYMBOLS } from "../geometry/symbols.ts";
 import { FILAMENTS, PAIRS, filamentName } from "../design/palette.ts";
@@ -55,6 +56,7 @@ const KINDS: { kind: Kind; icon: string; label: StringKey }[] = [
   { kind: "picture", icon: "🖼", label: "kind.picture" },
   { kind: "fluted", icon: "🧁", label: "kind.fluted" },
   { kind: "model", icon: "🗿", label: "kind.model" },
+  { kind: "split", icon: "🥚", label: "kind.split" },
 ];
 
 export function kindCard(): HTMLElement {
@@ -79,7 +81,7 @@ export function kindCard(): HTMLElement {
     "card.kind",
     grid,
     h("p", { class: "muted", text: t(`kind.${d().kind}.hint` as StringKey) }),
-    adv() || d().parts !== "cap+base"
+    d().kind !== "split" && (adv() || d().parts !== "cap+base")
       ? field(
           t("parts.label"),
           segmented(parts, d().parts, (v) => {
@@ -106,6 +108,8 @@ export function contentCard(): HTMLElement | null {
       return pictureCard();
     case "model":
       return modelCard();
+    case "split":
+      return splitCard();
   }
 }
 
@@ -676,7 +680,7 @@ function pictureCard(): HTMLElement {
 /** How many Switches the shared cap sits on, and (Advanced) a way to force the count. */
 export function switchesCard(): HTMLElement | null {
   const k = d().kind;
-  if (k !== "cap" && k !== "picture" && k !== "model") return null;
+  if (k !== "cap" && k !== "picture" && k !== "model" && k !== "split") return null;
   const n = state.build?.switchesPerCap ?? d().placedSwitches ?? 1;
   const note = h("p", { class: "muted", text: n === 1 ? t("switch.one") : t("switch.many").replace("{n}", String(n)) });
   if (!adv()) return h("section", { class: "card slim" }, note);
@@ -819,19 +823,40 @@ function debounce<T>(fn: (v: T) => void, ms = 250): (v: T) => void {
 
 /* ---------- 3D model ---------- */
 
+/** Uploads an STL/OBJ in place of the current one (ids keep the `model-` prefix the worker is sent), then `onNew` sets it up. */
+function modelUpload(icon: string, onNew: (file: string, name: string) => void): HTMLElement {
+  return button(`${icon} ${t(d().model ? "model.change" : "model.upload")}`, async () => {
+    const f = await pickFile(".stl,.obj");
+    if (!f) return;
+    const id = `model-${Date.now()}`;
+    d().files = Object.fromEntries(Object.entries(d().files).filter(([k]) => !k.startsWith("model-")));
+    d().files[id] = await readDataUrl(f);
+    onNew(id, f.name);
+    rerender();
+  }, "primary block big-btn");
+}
+
+function rotateField(m: ModelOptions): HTMLElement {
+  return field(
+    t("model.rotate"),
+    h(
+      "div",
+      { class: "btn-row" },
+      ...(["x", "y", "z"] as const).map((ax, i) =>
+        button(`↻ ${ax.toUpperCase()} 90°`, () => {
+          m.rotate[i] = (m.rotate[i] + 90) % 360;
+          changed();
+        }),
+      ),
+    ),
+  );
+}
+
 function modelCard(): HTMLElement {
   const m = d().model;
   const card = section(
     "card.model",
-    button(`🗿 ${t(m ? "model.change" : "model.upload")}`, async () => {
-      const f = await pickFile(".stl,.obj");
-      if (!f) return;
-      const id = `model-${Date.now()}`;
-      d().files = Object.fromEntries(Object.entries(d().files).filter(([k]) => !k.startsWith("model-")));
-      d().files[id] = await readDataUrl(f);
-      d().model = { file: id, name: f.name, width: 36, cut: 0, rotate: [0, 0, 0] };
-      rerender();
-    }, "primary block big-btn"),
+    modelUpload("🗿", (file, name) => (d().model = { file, name, width: 36, cut: 0, rotate: [0, 0, 0] })),
     h("p", { class: "muted", text: t("model.hint") }),
   );
   if (!m) return card;
@@ -845,22 +870,118 @@ function modelCard(): HTMLElement {
       m.cut = v / 100;
       changed();
     }),
-    field(
-      t("model.rotate"),
-      h(
-        "div",
-        { class: "btn-row" },
-        ...(["x", "y", "z"] as const).map((ax, i) =>
-          button(`↻ ${ax.toUpperCase()} 90°`, () => {
-            m.rotate[i] = (m.rotate[i] + 90) % 360;
-            changed();
-          }),
-        ),
-      ),
-    ),
+    rotateField(m),
     swatchField("colour.cap", d().keys[0].capColor, (hex) => (d().keys[0].capColor = hex)),
   );
   return card;
+}
+
+/* ---------- Split a model ---------- */
+
+function splitCard(): HTMLElement {
+  const m = d().model;
+  const sp = (d().split ??= newSplit());
+  const card = section(
+    "card.split",
+    modelUpload("🥚", (file, name) => {
+      d().model = { file, name, width: 50, cut: 0, rotate: [0, 0, 0] };
+      d().split = { ...newSplit(), style: sp.style };
+      state.fitOnBuild = true;
+    }),
+    h("p", { class: "muted", text: t("split.hint") }),
+  );
+  if (!m) return card;
+  const info = state.build?.split;
+  add(card,
+    h("p", { text: `📄 ${m.name}` }),
+    rotateField(m),
+    field(
+      t("split.style"),
+      segmented([{ value: "plug", label: t("split.plug") }, { value: "plain", label: t("split.plain") }], sp.style, (v) => {
+        sp.style = v as SplitOptions["style"];
+        changed();
+      }),
+      t("split.styleHint"),
+    ),
+    info ? seamField(sp, info) : null,
+    slider("split.flat", Math.round(m.cut * 100), 0, 80, 1, "%", (v) => {
+      m.cut = v / 100;
+      changed();
+    }),
+    slider("split.size", m.width, 25, 150, 1, "mm", (v) => {
+      m.width = v;
+      changed();
+    }),
+    info ? fitNote(m, sp, info) : null,
+    adv() ? nudgeField(sp) : null,
+    adv()
+      ? slider("split.wall", sp.wall, 1.2, 3, 0.1, "mm", (v) => {
+          sp.wall = v;
+          changed();
+        })
+      : null,
+  );
+  return card;
+}
+
+/** Seam height over the model's bottom, in mm (stored as a share of the height, so it follows the size). */
+function seamField(sp: SplitOptions, info: SplitInfo): HTMLElement {
+  const z = Math.round((info.seamZ - info.modelZ0) * 2) / 2;
+  return h(
+    "div",
+    {},
+    slider("split.seam", z, 1, Math.max(2, Math.floor(info.height) - 1), 0.5, "mm", (v) => {
+      sp.at = v / info.height;
+      changed();
+    }),
+    info.auto
+      ? h("p", { class: "muted", text: t("split.auto") })
+      : button(`🎯 ${t("split.best")}`, () => {
+          sp.at = null;
+          rerender();
+        }),
+  );
+}
+
+/** The smallest size that fits a switch, and a way to get there when the model has no room. */
+function fitNote(m: ModelOptions, sp: SplitOptions, info: SplitInfo): HTMLElement {
+  const text = info.minWidth === null ? t("split.fitsNone") : t("split.fits").replace("{n}", String(info.minWidth));
+  const short = info.minWidth !== null && (info.minWidth > m.width || state.build?.warnings.includes("warn.splitNoRoom"));
+  return h(
+    "div",
+    { class: "btn-row" },
+    h("span", { class: "muted", text }),
+    short
+      ? button(`📏 ${t("split.makeFit")}`, () => {
+          m.width = Math.min(150, Math.max(m.width, info.minWidth!));
+          sp.at = null;
+          rerender();
+        })
+      : null,
+  );
+}
+
+function nudgeField(sp: SplitOptions): HTMLElement {
+  const step = (dx: number, dy: number) => () => {
+    sp.nudge = [Math.round((sp.nudge[0] + dx) * 2) / 2, Math.round((sp.nudge[1] + dy) * 2) / 2];
+    rerender();
+  };
+  return field(
+    t("split.nudge"),
+    h(
+      "div",
+      { class: "btn-row" },
+      button("←", step(-0.5, 0)),
+      button("→", step(0.5, 0)),
+      button("↑", step(0, 0.5)),
+      button("↓", step(0, -0.5)),
+      button(t("split.reset"), () => {
+        sp.nudge = [0, 0];
+        rerender();
+      }),
+    ),
+    t("split.nudgeHint").replace("{x}", String(sp.nudge[0])).replace("{y}", String(sp.nudge[1])),
+  );
 }
 
 function swatchField(label: StringKey, value: string, set: (hex: string) => void): HTMLElement {
@@ -897,7 +1018,8 @@ export function colourCard(): HTMLElement {
     field(t("colour.pairs"), pairs, t("colour.pairsHint")),
     d().kind !== "picture" && multi ? field(t("colour.allCaps"), swatches(swatchList(), d().keys[0].capColor, all((k, hex) => (k.capColor = hex)))) : null,
     d().kind === "picture" ? swatchField("colour.border", d().keys[0].capColor, (hex) => (d().keys[0].capColor = hex)) : null,
-    d().kind !== "fluted" ? swatchField("colour.base", d().baseColor, (hex) => (d().baseColor = hex)) : null,
+    d().kind === "split" ? swatchField("colour.topHalf", d().keys[0].capColor, (hex) => (d().keys[0].capColor = hex)) : null,
+    d().kind !== "fluted" ? swatchField(d().kind === "split" ? "colour.bottomHalf" : "colour.base", d().baseColor, (hex) => (d().baseColor = hex)) : null,
     coloursSummary(),
   );
 }
@@ -930,6 +1052,7 @@ const SHAPES: { value: CapShape; icon: string; label: StringKey }[] = [
 ];
 
 export function capCard(): HTMLElement | null {
+  if (d().kind === "split") return null;
   const c = d().cap;
   const showShape = !["picture", "model"].includes(d().kind);
   if (!showShape && !adv()) return null;
@@ -1024,7 +1147,7 @@ const TEXTURES: { value: Texture; icon: string; label: StringKey }[] = [
 ];
 
 export function baseCard(): HTMLElement | null {
-  if (d().parts === "caps" || d().parts === "az-set") return null;
+  if (d().parts === "caps" || d().parts === "az-set" || d().kind === "split") return null;
   const b = d().base;
   const card = section("card.base");
   if (adv()) {

@@ -8,12 +8,10 @@
 //
 // The work runs on a small raster (0.5 mm pixels) of the cap and Base
 // outlines, so it costs two cheap manifold ops and some typed-array loops.
-import type { BaseOptions } from "../design/types.ts";
 import type { CrossSection } from "./kernel.ts";
 import { offset } from "./outline.ts";
 import type { Fit } from "./switch.ts";
 import { keepOut } from "./cap.ts";
-import { baseLevels } from "./base.ts";
 
 export type Pt = [number, number];
 export type Placement = { at: Pt[]; warnings: string[] };
@@ -241,16 +239,23 @@ function tidy(at: Pt[]): Pt[] {
  * fewer when they don't fit). One Switch always sits at the origin: today's
  * deepest point or picture anchor.
  */
-export function placeSwitches(outline: CrossSection, foot: CrossSection, fit: Fit, base: BaseOptions, want: 0 | 1 | 2 | 3 | 4): Placement {
-  const one: Placement = { at: [[0, 0]], warnings: [] };
-  if (want === 1) return one;
-  const rimTop = baseLevels(base, fit).wallTop;
+export function placeSwitches(outline: CrossSection, foot: CrossSection, fit: Fit, rimTop: number, want: 0 | 1 | 2 | 3 | 4): Placement {
+  if (want === 1) return { at: [[0, 0]], warnings: [] };
   const b = foot.bounds();
   const inside = rasterise(offset(outline, -0.6), b);
   const keep = keepOut(fit).slice(rimTop).bounds();
   const capOk = erodeBox(inside, (keep.max[0] - keep.min[0]) / 2);
   const baseOk = erodeBox(rasterise(foot.offset(-1, "Round"), b), fit.clipRoom / 2);
-  const ok: Mask = { ...capOk, data: capOk.data.map((v, i) => v & baseOk.data[i]) };
+  return placeIn({ ...capOk, data: capOk.data.map((v, i) => v & baseOk.data[i]) }, inside, outline, fit, want);
+}
+
+/**
+ * The same choice on ready-made masks: `ok` is where a Switch may sit, `inside`
+ * the area to cover, `outline` its edge. The origin must be the first Switch's spot.
+ */
+export function placeIn(ok: Mask, inside: Mask, outline: CrossSection, fit: Fit, want: 0 | 1 | 2 | 3 | 4): Placement {
+  const one: Placement = { at: [[0, 0]], warnings: [] };
+  if (want === 1) return one;
   const f = new Field(ok, inside, outline);
   const place = (n: number) => (n === 2 ? placeTwo(f, fit.pitch) : placeMany(f, n, fit.pitch));
 

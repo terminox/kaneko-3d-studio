@@ -81,5 +81,22 @@ export function release(): number {
   return n;
 }
 
+/**
+ * What a worker may keep between jobs: plain data only (typed arrays,
+ * polygons, numbers), never a kernel object, which `release` frees. One value
+ * per slot, replaced when its key changes.
+ */
+export type Memo = Map<string, { key: string; value: unknown }>;
+
+export function recall<T>(memo: Memo | undefined, slot: string, key: string): T | undefined {
+  const hit = memo?.get(slot);
+  return hit && hit.key === key ? (hit.value as T) : undefined;
+}
+
+export function keep<T>(memo: Memo | undefined, slot: string, key: string, value: T): T {
+  memo?.set(slot, { key, value });
+  return value;
+}
+
 /** Objects made since the last release (for tests). */
 export const trackedCount = () => tracked.length;

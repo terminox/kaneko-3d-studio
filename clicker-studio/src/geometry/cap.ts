@@ -60,6 +60,31 @@ export function keepOut(fit: Fit): Manifold {
   return K().Manifold.hull([env, env.translate([0, 0, fit.travel])]);
 }
 
+/** Half the keep-out's width at height `z` (plate frame): the housing's foot up to the travel, tapering above it. */
+export function keepOutHalf(fit: Fit, z: number): number {
+  const w0 = fit.housingBottom + 0.6, w1 = fit.housingTop + 0.6;
+  const t = Math.min(1, Math.max(0, (z - (fit.travel - 0.3)) / (fit.housingHeight + 0.3)));
+  return (w0 + (w1 - w0) * t) / 2;
+}
+
+/** The keep-out's top (plate frame). */
+export const keepOutTop = (fit: Fit) => fit.housingHeight + fit.travel;
+
+/**
+ * The stem boss of one Switch, at the origin (plate frame), with its cross
+ * socket cut, and the socket alone for clearing solid material around it.
+ */
+export function stemBoss(fit: Fit, stemFit: number): { boss: Manifold; socket: Manifold } {
+  const { Manifold, CrossSection } = K();
+  const { ceiling, bossBottom } = capHeights(fit);
+  const L = fit.crossLength + 2 * stemFit;
+  const W = fit.crossWidth + 2 * stemFit;
+  const cross = CrossSection.square([L, W], true).add(CrossSection.square([W, L], true));
+  const socket = slab(cross, bossBottom - 1, ceiling - 0.001);
+  const boss = Manifold.cylinder(ceiling - bossBottom + 0.4, fit.boss / 2, fit.boss / 2, 48).translate([0, 0, bossBottom]);
+  return { boss: boss.subtract(socket), socket };
+}
+
 /** True when clearing the housing at `at` would cut through the cap wall above `rimTop` (plate frame). */
 export function skirtExposed(outline: CrossSection, fit: Fit, rimTop: number, at: [number, number] = [0, 0]): boolean {
   const s = keepOut(fit).slice(rimTop).translate(at);
@@ -115,7 +140,7 @@ export function buildCap(
   switches: [number, number][] = [[0, 0]],
 ): CapGeometry {
   const { Manifold, CrossSection } = K();
-  const { skirtBottom, ceiling, bossBottom } = capHeights(fit);
+  const { skirtBottom, ceiling } = capHeights(fit);
   const height = Math.max(opts.height, minCapHeight(fit));
   const z0 = skirtBottom;
   const z1 = z0 + height;
@@ -131,13 +156,7 @@ export function buildCap(
   // bosses must clear every housing over the whole travel.
   const bosses: Manifold[] = [], keepOuts: Manifold[] = [];
   switches.forEach((s, i) => {
-    const sf = fit.stemFit + (i > 0 ? fit.extraStemFit : 0);
-    const L = fit.crossLength + 2 * sf;
-    const W = fit.crossWidth + 2 * sf;
-    const cross = CrossSection.square([L, W], true).add(CrossSection.square([W, L], true));
-    const socket = slab(cross, bossBottom - 1, ceiling - 0.001);
-    const boss = Manifold.cylinder(ceiling - bossBottom + 0.4, fit.boss / 2, fit.boss / 2, 48).translate([0, 0, bossBottom]);
-    bosses.push(boss.subtract(socket).translate([s[0], s[1], 0]));
+    bosses.push(stemBoss(fit, fit.stemFit + (i > 0 ? fit.extraStemFit : 0)).boss.translate([s[0], s[1], 0]));
     keepOuts.push(keepOut(fit).translate([s[0], s[1], 0]));
   });
   let cap = body.subtract(cavity).subtract(Manifold.union(keepOuts)).add(Manifold.union(bosses));

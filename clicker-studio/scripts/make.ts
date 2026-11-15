@@ -1,11 +1,12 @@
 // Build Designs from the command line.
 //   bun scripts/make.ts design.clicker.json [more.clicker.json ...] [--out out/x.3mf] [--validate]
 //   bun scripts/make.ts --kind row --text MAA [--out ...]        (quick Design without a file)
+//   bun scripts/make.ts --kind split --model egg.stl [--width 44] [--split plain] [--cut 0.1]
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 import { loadKernel } from "../src/geometry/kernel.ts";
 import { build, packPlates, type Group } from "../src/geometry/build.ts";
-import { newDesign, upgradeBase, type Design, type Kind } from "../src/design/types.ts";
+import { newDesign, newSplit, upgradeBase, type Design, type Kind } from "../src/design/types.ts";
 import { platesTo3mf } from "../src/export/bambu.ts";
 import { loadTemplate } from "../../model-maker/scripts/templates.ts";
 import { checkSlice, slice } from "../../model-maker/scripts/bambu-cli.ts";
@@ -29,16 +30,31 @@ for (let i = 0; i < args.length; i++) {
   else if (a === "--shape") (quick ??= newDesign("cap")).cap.shape = args[++i] as Design["cap"]["shape"];
   else if (a === "--texture") (quick ??= newDesign("cap")).base.texture = args[++i] as Design["base"]["texture"];
   else if (a === "--parts") (quick ??= newDesign("cap")).parts = args[++i] as Design["parts"];
+  else if (a === "--model") {
+    const file = resolve(args[++i]);
+    quick ??= newDesign("split");
+    quick.files["model-cli"] = `data:model/stl;base64,${readFileSync(file).toString("base64")}`;
+    quick.model = { file: "model-cli", name: basename(file), width: quick.kind === "split" ? 50 : 36, cut: 0, rotate: [0, 0, 0] };
+  } else if (a === "--width") quick!.model!.width = Number(args[++i]);
+  else if (a === "--cut") quick!.model!.cut = Number(args[++i]);
+  else if (a === "--split") (quick ??= newDesign("split")).split = { ...newSplit(), style: args[++i] as "plug" | "plain" };
   else {
     // Fill in fields added since the file was saved, as the app's `upgrade` does.
     const saved = JSON.parse(readFileSync(resolve(a), "utf8")) as Design;
     const fresh = newDesign(saved.kind ?? "cap");
-    designs.push({ ...fresh, ...saved, cap: { ...fresh.cap, ...saved.cap }, base: upgradeBase(fresh.base, saved.base ?? {}), fit: { ...fresh.fit, ...saved.fit } });
+    designs.push({
+      ...fresh,
+      ...saved,
+      cap: { ...fresh.cap, ...saved.cap },
+      base: upgradeBase(fresh.base, saved.base ?? {}),
+      fit: { ...fresh.fit, ...saved.fit },
+      ...(saved.kind === "split" ? { split: { ...newSplit(), ...saved.split } } : {}),
+    });
   }
 }
 if (quick) designs.push(quick);
 if (!designs.length) {
-  console.error("usage: bun scripts/make.ts design.clicker.json... [--out file.3mf] [--validate] | --kind row --text MAA");
+  console.error("usage: bun scripts/make.ts design.clicker.json... [--out file.3mf] [--validate] | --kind row --text MAA | --kind split --model file.stl");
   process.exit(2);
 }
 

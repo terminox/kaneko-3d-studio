@@ -159,7 +159,8 @@ function renderStageTools() {
 function paintHint() {
   const assembled = state.view !== "print";
   const pickable = assembled && Boolean(state.build?.patches.length);
-  stage.querySelector(".stage-hint")!.textContent = `${t(assembled ? "view.hint" : "view.printHint")}${pickable ? ` · ${t("view.pickHint")}` : ""}`;
+  const seam = assembled && Boolean(state.build?.split);
+  stage.querySelector(".stage-hint")!.textContent = `${t(assembled ? "view.hint" : "view.printHint")}${pickable ? ` · ${t("view.pickHint")}` : ""}${seam ? ` · ${t("view.seamHint")}` : ""}`;
 }
 
 function renderPanels() {
@@ -197,6 +198,8 @@ function showModel(frame = false) {
 
 /** Identifies a build's patches, which have their own height (not the heights themselves) and their colours. */
 const patchKey = (b: typeof state.build) => (b?.patches ?? []).map((p) => `${p.owner}:${p.at}${p.own ? "*" : ""}:${p.color}`).join("|");
+/** What the Split card shows from a build: the seam, the smallest size, and whether a switch fits. */
+const splitKey = (b: typeof state.build) => (b?.split ? JSON.stringify([b.split, b.warnings.includes("warn.splitNoRoom")]) : "");
 /** True while a panel input has focus: re-rendering then would cut a drag short. */
 const editing = () => document.activeElement instanceof HTMLInputElement && left.contains(document.activeElement);
 
@@ -248,8 +251,19 @@ function paintHighlight() {
     : null);
 }
 
+/** Split a model: a tap on the model puts the seam at that height. The top half rests a gap higher, and a tap inside the gap changes nothing. */
+function pickSeam(hit: [number, number, number] | null) {
+  const s = state.build?.split, sp = state.design.split;
+  if (state.view !== "assembled" || !hit || !s || !sp) return;
+  const z = hit[2] <= s.seamZ ? hit[2] : hit[2] >= s.seamZ + s.gap ? hit[2] - s.gap : null;
+  if (z === null) return;
+  sp.at = Math.min(0.98, Math.max(0.02, (z - s.modelZ0) / s.height));
+  rerender();
+}
+
 // Click a patch to pick it; Shift-click (or Pick several) adds or removes; a click elsewhere clears.
 viewport.onPick = (hit, shiftKey) => {
+  if (state.design.kind === "split") return pickSeam(hit);
   const patches = state.build?.patches ?? [];
   if (state.view !== "assembled" || !patches.length) return;
   const shift = shiftKey || pickSeveral;
@@ -281,6 +295,7 @@ onBuilt((r) => {
     state.status = "";
   } else {
     const before = patchKey(state.build);
+    const splitBefore = splitKey(state.build);
     state.build = r;
     state.error = "";
     state.status = "";
@@ -303,11 +318,20 @@ onBuilt((r) => {
     }
     // The height tools list the patches and the Switch note shows the count:
     // refresh them when either changes, unless a slider is mid-drag.
-    if (kept.length !== state.selected.length || ((patchKey(r) !== before || switchesChanged || emptiedChanged) && !editing())) {
+    if (kept.length !== state.selected.length || ((patchKey(r) !== before || switchesChanged || emptiedChanged || splitKey(r) !== splitBefore) && !editing())) {
       state.selected = kept;
       renderPanels();
     }
     paintHighlight();
+    // A just-uploaded model too small for a switch grows to the smallest size that fits, once.
+    const m = state.design.model;
+    if (state.fitOnBuild) {
+      state.fitOnBuild = false;
+      if (r.split?.minWidth && m && r.split.minWidth > m.width) {
+        m.width = Math.min(150, r.split.minWidth);
+        rerender();
+      }
+    }
   }
   paintStatus();
 });

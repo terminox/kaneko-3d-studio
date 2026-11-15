@@ -7,8 +7,8 @@ export const CURRENCY = pricing.currency;
 
 export type PriceLine = { label: string; amount: number };
 
-/** True for the kinds whose keys share one cap. */
-export const sharedCap = (d: Design) => d.kind === "cap" || d.kind === "picture" || d.kind === "model";
+/** True for the kinds whose keys share one cap (a split model's top half is one). */
+export const sharedCap = (d: Design) => d.kind === "cap" || d.kind === "picture" || d.kind === "model" || d.kind === "split";
 
 /** Switches in a Design: one per key, or under a shared cap the forced count, else what the last build placed. */
 export function switchesOf(d: Design): number {
