@@ -4,11 +4,23 @@ import type { Design, PictureOptions } from "../design/types.ts";
 import type { Traced } from "../geometry/decoration.ts";
 import { nearestFilament } from "../design/palette.ts";
 import { tracePicture, type Img } from "../picture/process.ts";
+import { svgToTraced } from "../picture/svg.ts";
 import { t } from "../i18n/strings.ts";
-import { h } from "./dom.ts";
+import { h, readDataUrl } from "./dom.ts";
 import { state } from "./state.ts";
 
 const images = new Map<string, Promise<HTMLImageElement>>();
+
+/** Whether a stored picture is SVG art, traced from its own shapes. */
+export const isSvg = (src: string | undefined) => Boolean(src?.startsWith("data:image/svg+xml"));
+
+/** An uploaded picture as stored in `design.files`. SVG art keeps its type even when the browser didn't name it. */
+export function readPicture(f: File): Promise<string> {
+  const svg = f.type === "image/svg+xml" || /\.svg$/i.test(f.name);
+  return readDataUrl(svg ? new Blob([f], { type: "image/svg+xml" }) : f);
+}
+
+const svgArt = async (src: string, colours: number) => svgToTraced(await (await fetch(src)).text(), colours);
 
 export function loadImage(src: string): Promise<HTMLImageElement> {
   let p = images.get(src);
@@ -71,8 +83,7 @@ async function tracePictureOf(design: Design): Promise<Record<string, Traced>> {
   const useCartoon = p.useCartoon && Boolean(cartoon);
   const src = useCartoon ? cartoon : design.files[p.image];
   if (!src) return {};
-  const canvas = await renderPicture(src, useCartoon ? FULL : p.crop, useCartoon ? NO_ADJUST : p.adjust, 360);
-  const traced = tracePicture(pixels(canvas), p);
+  const traced = isSvg(src) ? await svgArt(src, p.colors) : tracePicture(pixels(await renderPicture(src, useCartoon ? FULL : p.crop, useCartoon ? NO_ADJUST : p.adjust, 360)), p);
   // Keep the owner's colour choices when the colour count is unchanged. A new
   // split re-sorts the colours, so their heights start over; patch pins stay put.
   if (p.palette.length !== traced.colours.length || !p.palette.length) {
@@ -94,8 +105,9 @@ async function traceKeyImagesOf(design: Design, cache: Record<string, Traced>): 
       out[id] = cache[id];
       continue;
     }
-    const canvas = await renderPicture(src, FULL, NO_ADJUST, 240);
-    const tr = tracePicture(pixels(canvas), { removeBackground: true, bgStrength: 70, punchHoles: true, colors: 3 });
+    const tr = isSvg(src)
+      ? await svgArt(src, 3)
+      : tracePicture(pixels(await renderPicture(src, FULL, NO_ADJUST, 240)), { removeBackground: true, bgStrength: 70, punchHoles: true, colors: 3 });
     tr.layers = tr.layers.map((l) => ({ ...l, color: nearestFilament(l.color) }));
     out[id] = tr;
   }

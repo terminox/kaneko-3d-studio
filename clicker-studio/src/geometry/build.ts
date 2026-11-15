@@ -2,14 +2,13 @@
 import type { Design, Key } from "../design/types.ts";
 import type { Mesh } from "@mm/pipeline/mesh.ts";
 import { K, type CrossSection, type Manifold } from "./kernel.ts";
-import { capOutline, centredOnSwitch, offset, rings as ringsCs } from "./outline.ts";
+import { capOutline, centredOnSwitch, deepestPoint, offset } from "./outline.ts";
 import { buildCap, skirtExposed, type Solid } from "./cap.ts";
 import { baseFootprint, baseJoints, baseLevels, baseSupports, buildBase, connectorSides, keySwitches, loopCentres, type BaseKey } from "./base.ts";
 import { H, holeCentre, shortTongue, sideDir, switchClash, type Joint } from "./connector.ts";
 import { placeSwitches } from "./switches.ts";
-import { ringsBounds } from "./path.ts";
-import { decorationLayers, fitLayers, flipY, outlineRings, type Assets, type Layer } from "./decoration.ts";
-import { patchRef, tracedPatches } from "./patches.ts";
+import { decorationLayers, fitLayers, outlineRings, type Assets, type Layer } from "./decoration.ts";
+import { patchRef, tracedAreas, tracedPatches } from "./patches.ts";
 import { TALL, type PatchInfo } from "../design/heights.ts";
 import { keyCells } from "./layout.ts";
 import { buildChain, chainPitch } from "./chain.ts";
@@ -89,14 +88,15 @@ function pictureSpec(design: Design, assets: Assets): { outline: CrossSection; d
   const p = design.picture;
   const t = p && assets.traced[p.image];
   if (!p || !t) return null;
+  const whole = tracedAreas(t).outline;
+  if (whole.isEmpty()) return null;
   // `width` is the width of the shape itself, not of the image around it.
-  const ob = ringsBounds(t.outline);
-  const s = p.width / (ob.w > 0 ? ob.w : t.width);
-  const scale = (rs: typeof t.outline) => flipY(rs).map((r) => r.map(([x, y]) => [x * s, y * s] as [number, number]));
-  let art = ringsCs(scale(t.outline), "EvenOdd");
-  // The Switch sits at the anchor (the widest point of the shape), else the centre.
-  const b = art.bounds();
-  const c: [number, number] = t.anchor ? [-t.anchor[0] * s, t.anchor[1] * s] : [-(b.min[0] + b.max[0]) / 2, -(b.min[1] + b.max[1]) / 2];
+  const ob = whole.bounds();
+  const s = p.width / (ob.max[0] - ob.min[0]);
+  let art = whole.scale(s);
+  // The Switch sits at the anchor (the widest point of the shape), else at the shape's deepest point.
+  const [sx, sy] = t.anchor ? [t.anchor[0] * s, -t.anchor[1] * s] : deepestPoint(art);
+  const c: [number, number] = [-sx, -sy];
   art = art.translate(c);
   // Grow by the border, then smooth tiny notches so the skirt and Base wall stay printable.
   const outline = offset(offset(art, Math.max(0, design.cap.border) + 0.6), -0.6);

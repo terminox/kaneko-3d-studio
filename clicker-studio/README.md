@@ -23,7 +23,7 @@ The preview needs WebGL. For the **AI cartoon** button, copy `.env.example` to `
 | Single key | One Top Cap on a Base: text (several lines), emoji, icon, symbol or picture on top. |
 | Letter row | One Keycap per character (Thai, English, 한국어, 中文, emoji), up to 10, on one Base. |
 | Grid / WASD | Keys in a row, column, grid, WASD, arrows, T or custom cells, up to 24. |
-| Picture | Upload a picture. The cap and Base follow its outline, the picture splits into 1–7 colours, and a cap border of 0–3 mm is added around it, so the cap and Base grow with the border and the picture keeps its width (0 = the picture runs to the edge; under 0.8 mm warns), and the Switch goes at the widest point of the shape. |
+| Picture | Upload a picture or an SVG (below). The cap and Base follow its outline, the picture splits into 1–7 colours, and a cap border of 0–3 mm is added around it, so the cap and Base grow with the border and the picture keeps its width (0 = the picture runs to the edge; under 0.8 mm warns), and the Switch goes at the widest point of the shape. |
 | Fluted chain | One scalloped Base per key, linked with 6–8 mm metal jump rings through a small loop on each side, or with H-connectors (below). |
 | 3D model | An STL/OBJ is rotated, scaled, cut flat and fused onto a standard cap pedestal. The model must be watertight. |
 | Split a model | An STL/OBJ is cut level into two halves with a switch inside (below). The whole top half presses. |
@@ -47,6 +47,18 @@ Upload any watertight STL or OBJ, standing the way it is pressed, and it is cut 
 - Warnings say when no switch fits, when a pocket breaks through the bottom half, when the top half is too thin over a switch, and when the seam misses the model.
 
 Smallest warning-free blocks with the defaults (`bun scripts/min-sizes.ts`): Plain needs a 20 mm square section and 21 mm of height, Plug a 24.5 mm section and 20.5 mm. A round model needs a little more.
+
+## SVG pictures
+
+An SVG works as the picture for the Picture kind and for a picture on a key. Its own shapes become the cap outline and the colour areas, with no pixels and no tracing, so edges stay crisp and colours exact.
+
+- Paths, rectangles (rounded too), circles, ellipses, polygons, polylines and `<use>` copies are read with their transforms. Fills come from the SVG's own CSS, so Illustrator's class styles and inherited fills work. A gradient uses its first colour.
+- Shapes keep their drawing order. A shape drawn later covers what it overlaps, so a white highlight on a black pupil stays.
+- A first shape that covers the whole drawing, like a white background rectangle, is dropped. The viewBox crops anything outside it.
+- **Colours from the picture** merges fills that look alike until that many are left, and the colour that covers more keeps its exact value. Each colour maps to the nearest filament, as with a photo. A key takes up to 3.
+- Crop, AI cartoon and background removal work on pixels, so they are hidden for an SVG.
+- Lines (strokes), text and embedded pictures are left out, and the card says so. Turn them into filled shapes first: in Inkscape, Path → Object to Path and Stroke to Path; in Illustrator, Object → Expand. Clipping paths and masks are ignored too, so release or expand them.
+- The SVG is saved inside the Design file, so a saved Design reopens as it was.
 
 ## H-connector
 
@@ -122,7 +134,7 @@ src/geometry/   kernel, switch (Fit), switches (where the switches go under a sh
                 cap, base, texture, layout, chain, model-cap, split (Split a model), decoration,
                 patches (picture islands + heights), symbols, path (SVG paths), build.ts (Design → parts, plate packing)
 src/text/       shape.ts: HarfBuzz text shaping with per-character font fallback
-src/picture/    process.ts: background removal, holes, Lab k-means colour split, tracing
+src/picture/    process.ts: background removal, holes, Lab k-means colour split, tracing; svg.ts: SVG art from its own shapes
 src/export/     bambu.ts (→ Model Maker's 3MF writer), stl.ts (STL zip), template.ts
 src/ui/         main, panels, colour-bar (part colours), picture-ui (crop dialog, AI), order-ui (order sheet), viewport, state
 src/i18n/       strings.ts: every Thai and English string

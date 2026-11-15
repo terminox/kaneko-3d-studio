@@ -80,7 +80,7 @@ const S = {
   "deco.emojiHint": ["พิมพ์เป็นลายนูนสีเดียว", "Printed as a one-colour shape"],
   "deco.imageUpload": ["อัปรูปทำลายบนปุ่ม", "Upload a picture for this key"],
   "deco.imageChange": ["เปลี่ยนรูป", "Change picture"],
-  "deco.imageHint": ["PNG พื้นใส หรือรูปพื้นเรียบ แยกได้สูงสุด 3 สี", "Transparent PNG or a plain background; up to 3 colours"],
+  "deco.imageHint": ["PNG พื้นใส รูปพื้นเรียบ หรือ SVG แยกได้สูงสุด 3 สี", "Transparent PNG, a plain background or an SVG; up to 3 colours"],
   "deco.scale": ["ขนาดลาย", "Decoration size"],
 
   "font.label": ["ฟอนต์", "Font"],
@@ -233,7 +233,9 @@ const S = {
 
   "picture.upload": ["อัปรูป", "Upload a picture"],
   "picture.change": ["เปลี่ยนรูป", "Change picture"],
-  "picture.hint": ["PNG พื้นใส หรือรูปการ์ตูนพื้นเรียบได้ผลดีสุด", "A transparent PNG or a cartoon on a plain background works best"],
+  "picture.hint": ["PNG พื้นใส รูปการ์ตูนพื้นเรียบ หรือ SVG ได้ผลดีสุด", "A transparent PNG, a cartoon on a plain background, or an SVG works best"],
+  "picture.svgHint": ["SVG ใช้รูปทรงและสีของไฟล์เอง ขอบคมและสีตรง ไม่ต้องครอปหรือลบพื้นหลัง", "An SVG keeps its own shapes and colours, so edges stay crisp and colours exact. Nothing to crop or clean up."],
+  "picture.failed": ["อ่านรูปไม่ได้", "Couldn't read the picture"],
   "picture.crop": ["ครอป / หมุน / ปรับแสงรูป", "Crop / rotate / adjust"],
   "picture.removeBg": ["ลบพื้นหลัง", "Remove background"],
   "picture.removeBgHint": ["เปิด = ทรงตามตัวรูป · ปิด = ใช้ทั้งรูปเป็นสี่เหลี่ยม", "On: shaped like the subject · Off: the whole picture as a rectangle"],
@@ -326,6 +328,7 @@ const S = {
   "view.printHint": ["ตัวอย่างแสดงแบบแยกชิ้น ตามไฟล์ที่พิมพ์จริง", "Showing the parts as they lie on the print bed"],
 
   "warn.noPicture": ["ยังไม่มีรูป: อัปรูปเพื่อทำทรงฝา", "No picture yet: upload one to shape the cap."],
+  "warn.svgSkipped": ["บางส่วนของ SVG ถูกตัดออก: เส้นขอบ (stroke) ตัวอักษร และรูปที่ฝังไว้ แปลงเป็นรูปทรงแบบเติมสีในโปรแกรมวาดก่อน (Object to Path, Outline Stroke)", "Some of the SVG was left out: lines (strokes), text and embedded pictures. Turn them into filled shapes in your drawing app first (Object to Path, Outline Stroke)."],
   "warn.noModel": ["ยังไม่มีโมเดล: อัปไฟล์ STL หรือ OBJ", "No 3D model yet: upload an STL or OBJ."],
   "warn.smallCap": ["ฝาเล็กไปสำหรับสวิตช์: ขอบฝาเหนือขอบฐานจะบาง ลองขยายขนาด", "The cap is small for a switch: its skirt gets thin above the Base rim. Make it bigger."],
   "warn.hugeCap": ["ฝาใหญ่มาก: ใส่สวิตช์เท่าที่วางได้แล้วก็ยังไม่ถึงทุกขอบ อาจโยก ลองลดขนาด", "The cap is very large: even the most switches that fit can't reach every edge, so it may wobble. Make it smaller."],

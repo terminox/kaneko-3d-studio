@@ -11,6 +11,9 @@ import { tracePicture, type Img } from "../src/picture/process.ts";
 import type { Traced } from "../src/geometry/decoration.ts";
 import { tracedPatches } from "../src/geometry/patches.ts";
 import { setPatchHeights } from "../src/design/heights.ts";
+import { nearestFilament } from "../src/design/palette.ts";
+import { pathToRings } from "../src/geometry/path.ts";
+import { ellipsePath, pointsPath, rectPath, shapesToTraced, type SvgShape } from "../src/picture/svg.ts";
 import { writeBinaryStl } from "../../model-maker/src/pipeline/mesh.ts";
 import { loadTemplate } from "../../model-maker/scripts/templates.ts";
 import { checkSlice, slice, supportMoves } from "../../model-maker/scripts/bambu-cli.ts";
@@ -180,6 +183,48 @@ const fixtures: Record<string, () => { design: Design; traced: Record<string, Tr
     const d = newDesign("cap");
     d.base.connectors = { ...d.base.connectors, top: "tab", bottom: "socket" };
     return { design: d, traced: {} };
+  },
+  svg: () => {
+    // SVG art in paint order: a white background (dropped), a face with ears, white eyes,
+    // black pupils with white highlights drawn on top, and a pink mouth. Raised: eyes, highlights
+    // and mouth at 0.8 mm, pupils at 1.2 mm.
+    const s = (d: string, fill: string): SvgShape => ({ rings: pathToRings(d, 0.05), fill, evenOdd: false });
+    const t = shapesToTraced(
+      [
+        s(rectPath(0, 0, 120, 110, null, null), "#FFFFFF"),
+        s(pointsPath("18,40 30,4 52,26"), "#F7D046"),
+        s(pointsPath("102,40 90,4 68,26"), "#F7D046"),
+        s(ellipsePath(60, 62, 46, 44), "#F7D046"),
+        s(ellipsePath(42, 55, 10, 12), "#FFFFFF"),
+        s(ellipsePath(78, 55, 10, 12), "#FFFFFF"),
+        s(ellipsePath(44, 58, 6, 6), "#1E1E1E"),
+        s(ellipsePath(80, 58, 6, 6), "#1E1E1E"),
+        s(ellipsePath(46, 55, 2, 2), "#FFFFFF"),
+        s(ellipsePath(82, 55, 2, 2), "#FFFFFF"),
+        s(rectPath(48, 80, 24, 8, 4, null), "#F4B6C8"),
+      ],
+      120,
+      110,
+      4,
+      0,
+    );
+    const d = newDesign("picture");
+    d.cap.style = "raised";
+    d.cap.border = 1.2;
+    d.picture = {
+      image: "art",
+      crop: { x: 0, y: 0, w: 1, h: 1, rotate: 0 },
+      adjust: { brightness: 0, contrast: 0, saturation: 0 },
+      removeBackground: false,
+      bgStrength: 0,
+      punchHoles: false,
+      colors: 4,
+      palette: t.colours.map(nearestFilament),
+      width: 40,
+      useCartoon: false,
+      heights: { colour: [0, 0.8, 1.2, 0.8], pins: [] },
+    };
+    return { design: d, traced: { art: t } };
   },
   "hconn-picture": () => {
     // Tab only on a picture Base: the connector sits on the middle of its right side.

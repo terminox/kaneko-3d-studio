@@ -35,12 +35,37 @@ function interior(cs: CrossSection): Pt | null {
 }
 
 /**
+ * Each colour layer's area and the whole picture's, in traced units with y up.
+ * Vector art resolves its paint order: a shape keeps only what no later shape
+ * covers, and the viewBox clips everything, as the SVG draws it.
+ */
+export function tracedAreas(t: Traced): { layers: CrossSection[]; outline: CrossSection } {
+  const flip = (rs: Ring[]) => mapRings(rs, ([x, y]) => [x, -y]);
+  if (!t.shapes) return { layers: t.layers.map((l) => rings(flip(l.rings), "EvenOdd")), outline: rings(flip(t.outline), "EvenOdd") };
+  const { CrossSection } = K();
+  const box = CrossSection.square([t.width, t.height]).translate([0, -t.height]);
+  const seen: CrossSection[][] = t.layers.map(() => []);
+  let above: CrossSection | undefined;
+  for (let i = t.shapes.length - 1; i >= 0; i--) {
+    const s = t.shapes[i];
+    const cs = rings(flip(s.rings), s.evenOdd ? "EvenOdd" : "NonZero");
+    seen[s.layer]?.push(above ? cs.subtract(above) : cs);
+    above = above ? above.add(cs) : cs;
+  }
+  return {
+    layers: seen.map((cs) => CrossSection.union(cs).intersect(box)),
+    outline: above ? above.intersect(box) : CrossSection.union([]),
+  };
+}
+
+/**
  * Splits a traced picture into patches and resolves each one's height.
  * With `outlineAsLayer`, a picture with no colour layers (one colour) is one
  * layer made of its outline.
  */
 export function tracedPatches(t: Traced, heights?: LayerHeights, outlineAsLayer = false): Patch[] {
-  const src = t.layers.length ? t.layers.map((l) => l.rings) : outlineAsLayer ? [t.outline] : [];
+  const areas = t.layers.length || outlineAsLayer ? tracedAreas(t) : null;
+  const src = !areas ? [] : t.layers.length ? areas.layers : [areas.outline];
   const pins = heights?.pins ?? [];
   // Pins live in 0–1 picture units, y down; patches in pixels, y up.
   const toPixels = ([x, y]: [number, number]): Pt => [x * t.width, -y * t.height];
@@ -49,9 +74,8 @@ export function tracedPatches(t: Traced, heights?: LayerHeights, outlineAsLayer 
   const paintPts = paints.map((p) => toPixels(p.at));
   const out: Patch[] = [];
   const outers: Ring[][] = [];
-  src.forEach((rs, layer) => {
-    if (!rs.length) return;
-    for (const cs of rings(mapRings(rs, ([x, y]) => [x, -y]), "EvenOdd").decompose()) {
+  src.forEach((area, layer) => {
+    for (const cs of area.decompose()) {
       const polys = cs.toPolygons() as Ring[];
       const p = interior(cs);
       if (!p) continue;

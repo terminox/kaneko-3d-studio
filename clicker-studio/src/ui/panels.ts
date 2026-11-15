@@ -11,7 +11,7 @@ import { orderTotal } from "../design/order.ts";
 import { t, type StringKey } from "../i18n/strings.ts";
 import { button, field, h, pickFile, readDataUrl, section, segmented, slider, swatches, toggle } from "./dom.ts";
 import { changed, rerender, selectedPatches, selectionChanged, state, switchKind } from "./state.ts";
-import { cartoonize, cropDialog, loadImage, retracePicture, retraceKeyImages } from "./picture-ui.ts";
+import { cartoonize, cropDialog, isSvg, loadImage, readPicture, retracePicture, retraceKeyImages } from "./picture-ui.ts";
 import { MAX_HEIGHT, TALL, colourHeight, emptyHeights, flatten, makeItPop, remapHeights, resetPatches, setColourHeight, setPatchHeights } from "../design/heights.ts";
 import { hasBigFont, importFont } from "./user-fonts.ts";
 import { orderActions } from "./order-ui.ts";
@@ -322,17 +322,18 @@ function keyEditor(i: number): HTMLElement {
   } else if (deco.type === "image") {
     wrap.append(
       button(`📷 ${t(deco.image ? "deco.imageChange" : "deco.imageUpload")}`, async () => {
-        const f = await pickFile("image/*");
+        const f = await pickFile("image/*,.svg");
         if (!f) return;
         const id = `img-${Date.now()}`;
-        d().files[id] = await readDataUrl(f);
+        d().files[id] = await readPicture(f);
         deco.image = id;
         delete deco.heights;
-        await retraceKeyImages();
+        await tryRetrace(retraceKeyImages);
         rerender();
       }, "primary block"),
       h("p", { class: "muted", text: t("deco.imageHint") }),
     );
+    if (state.traced[deco.image]?.skipped) wrap.append(skippedNote());
   }
 
   if (deco.type !== "none") {
@@ -523,28 +524,33 @@ function iconPicker(value: string, onPick: (id: string) => void): HTMLElement {
 function pictureCard(): HTMLElement {
   const p = d().picture!;
   const has = Boolean(p.image && d().files[p.image]);
+  const svg = isSvg(d().files[p.image]);
   const card = section(
     "card.picture",
     button(`📷 ${t(has ? "picture.change" : "picture.upload")}`, async () => {
-      const f = await pickFile("image/*");
+      const f = await pickFile("image/*,.svg");
       if (!f) return;
       const id = `pic-${Date.now()}`;
       d().files = Object.fromEntries(Object.entries(d().files).filter(([k]) => !k.startsWith("pic-")));
-      d().files[id] = await readDataUrl(f);
+      d().files[id] = await readPicture(f);
       p.image = id;
       p.useCartoon = false;
       p.palette = [];
       delete p.heights;
-      const r = await cropDialog(d().files[id], { x: 0, y: 0, w: 1, h: 1, rotate: 0 }, p.adjust);
-      if (r) Object.assign(p, r);
+      if (!isSvg(d().files[id])) {
+        const r = await cropDialog(d().files[id], { x: 0, y: 0, w: 1, h: 1, rotate: 0 }, p.adjust);
+        if (r) Object.assign(p, r);
+      }
       await retraceAndRender();
     }, "primary block big-btn"),
-    h("p", { class: "muted", text: t("picture.hint") }),
+    h("p", { class: "muted", text: t(svg ? "picture.svgHint" : "picture.hint") }),
   );
   if (!has) return card;
+  if (state.traced[p.image]?.skipped) add(card, skippedNote());
 
+  // Crop, AI cartoon and background removal work on pixels, so SVG art skips them.
   add(card, 
-    button(`✂️ ${t("picture.crop")}`, async () => {
+    !svg && button(`✂️ ${t("picture.crop")}`, async () => {
       const r = await cropDialog(d().files[p.image], p.crop, p.adjust);
       if (!r) return;
       // Pins and paints move with the picture under the new crop.
@@ -588,19 +594,19 @@ function pictureCard(): HTMLElement {
       }),
     );
   }
-  add(card, aiBox);
+  add(card, !svg && aiBox);
 
   add(card, 
-    toggle("picture.removeBg", p.removeBackground, async (v) => {
+    !svg && toggle("picture.removeBg", p.removeBackground, async (v) => {
       p.removeBackground = v;
       await retraceAndRender();
     }, "picture.removeBgHint"),
-    toggle("picture.holes", p.punchHoles, async (v) => {
+    !svg && toggle("picture.holes", p.punchHoles, async (v) => {
       p.punchHoles = v;
       await retraceAndRender();
     }, "picture.holesHint"),
   );
-  if (p.removeBackground) add(card, slider("picture.strength", p.bgStrength, 0, 100, 1, "", debounce(async (v) => {
+  if (p.removeBackground && !svg) add(card, slider("picture.strength", p.bgStrength, 0, 100, 1, "", debounce(async (v) => {
     p.bgStrength = v;
     await retraceAndRender(false);
   })));
@@ -831,9 +837,23 @@ function heightsBlock(owner: number, get: () => LayerHeights, hs: LayerHeights |
 
 async function retraceAndRender(full = true) {
   state.status = t("status.tracing");
-  await retracePicture();
+  await tryRetrace(retracePicture);
   if (full) rerender();
   else changed();
+}
+
+/** Runs a retrace, saying so when the picture can't be read (a broken SVG). */
+async function tryRetrace(retrace: () => Promise<void>) {
+  try {
+    await retrace();
+  } catch (e) {
+    state.status = "";
+    alert(`${t("picture.failed")}: ${e instanceof Error ? e.message : e}`);
+  }
+}
+
+function skippedNote(): HTMLElement {
+  return h("p", { class: "note warn", text: `⚠ ${t("warn.svgSkipped")}` });
 }
 
 function debounce<T>(fn: (v: T) => void, ms = 250): (v: T) => void {

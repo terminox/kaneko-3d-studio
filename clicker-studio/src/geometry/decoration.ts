@@ -11,14 +11,26 @@ import { patchRef, tracedPatches, type PatchRef } from "./patches.ts";
 /** An icon as SVG path data in its own viewBox (y down). */
 export type IconData = { paths: string[]; viewBox: [number, number, number, number] };
 
+/** One filled shape of vector art, in one of the picture's colour layers. */
+export type FilledShape = { layer: number; rings: Ring[]; evenOdd: boolean };
+
 /** A traced image: rings per colour in image units (y down), plus its outline. */
 export type Traced = {
   width: number;
   height: number;
   layers: { color: string; rings: Ring[] }[];
   outline: Ring[];
-  /** Where the Switch goes (image px); the outline's centre when absent. */
+  /** Where the Switch goes (image px); the shape's deepest point when absent. */
   anchor?: [number, number];
+  /**
+   * Vector art (an SVG): its filled shapes in paint order, so a later shape
+   * hides what it covers. Then `layers[].rings` stay empty, `outline` holds
+   * every shape's rings for its bounds only, and with no layers (one colour)
+   * the shapes only make the outline.
+   */
+  shapes?: FilledShape[];
+  /** How many drawn SVG parts were left out (strokes, text, embedded images). */
+  skipped?: number;
 };
 
 export type Assets = {
