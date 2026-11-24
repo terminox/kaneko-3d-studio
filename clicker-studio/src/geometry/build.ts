@@ -6,7 +6,9 @@ import { capOutline, centredOnSwitch, deepestPoint, offset } from "./outline.ts"
 import { buildCap, skirtExposed, type Solid } from "./cap.ts";
 import { baseFootprint, baseJoints, baseLevels, baseSupports, buildBase, connectorSides, keySwitches, loopCentres, type BaseKey } from "./base.ts";
 import { H, holeCentre, shortTongue, sideDir, switchClash, type Joint } from "./connector.ts";
-import { placeSwitches } from "./switches.ts";
+import { placeSwitches, switchGround } from "./switches.ts";
+import type { Place, Pt } from "./spots.ts";
+import { capHeights, minCapHeight } from "./switch.ts";
 import { decorationLayers, fitLayers, outlineRings, type Assets, type Layer } from "./decoration.ts";
 import { patchRef, tracedAreas, tracedPatches } from "./patches.ts";
 import { TALL, type PatchInfo } from "../design/heights.ts";
@@ -41,6 +43,8 @@ export type BuildResult = {
   bottom: number;
   /** Picture patches, for picking in the preview (assembled frame). */
   patches: PatchInfo[];
+  /** Shared caps: where the Switches are and may be moved to. */
+  place?: Place;
   /** Split a model: the seam and size, for the Split card and taps on the preview. */
   split?: SplitInfo;
 };
@@ -115,11 +119,17 @@ export async function build(design: Design, assets: Assets): Promise<BuildResult
   const { cap, base, fit } = design;
   const caps: CapSpec[] = [];
   let baseKeys: BaseKey[] = [];
+  let place: Place | undefined;
 
   /** One shared cap at the origin, on as many Switches as its size needs (or as the owner forced). */
   const shared = (outline: CrossSection, spec: Omit<CapSpec, "outline" | "at" | "switches">) => {
     const foot = baseFootprint([{ at: [0, 0], outline }], base, fit);
-    const placed = placeSwitches(outline, foot, fit, baseLevels(base, fit).wallTop, cap.switches);
+    const ground = switchGround(outline, foot, fit, baseLevels(base, fit).wallTop);
+    const placed = placeSwitches(outline, ground, fit, cap.switches, cap.spots);
+    const b = outline.bounds();
+    const rings = (cs: CrossSection) => cs.simplify(0.05).toPolygons() as Pt[][];
+    const top = capHeights(fit).skirtBottom + Math.max(cap.height, minCapHeight(fit));
+    place = { at: placed.at, ok: ground.ok, pitch: fit.pitch, min: [b.min[0], b.min[1]], max: [b.max[0], b.max[1]], cap: rings(outline), foot: rings(foot), top };
     warnings.push(...placed.warnings);
     caps.push({ ...spec, outline, at: [0, 0], switches: placed.at });
     baseKeys = [{ at: [0, 0], outline, switches: placed.at }];
@@ -236,6 +246,7 @@ export async function build(design: Design, assets: Assets): Promise<BuildResult
     keyring,
     bottom,
     patches,
+    place,
   };
 }
 

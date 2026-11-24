@@ -4,6 +4,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import type { Keyring, Part } from "../geometry/build.ts";
 import type { Fit } from "../geometry/switch.ts";
+import type { Place, Pt } from "../geometry/spots.ts";
 import type { Ring } from "../geometry/path.ts";
 import { pointInRings, signedArea } from "../design/heights.ts";
 
@@ -56,6 +57,13 @@ export class Viewport {
   private slice: Slice | null = null;
   /** How far the Apart view lifts the top parts. */
   private lift = 0;
+  /** Handles for moving Switches, over everything else. */
+  private handles = new THREE.Group();
+  private move: { place: Place; at: Pt[] } | null = null;
+  /** The camera to go back to when moving ends. */
+  private before: { position: THREE.Vector3; target: THREE.Vector3 } | null = null;
+  onMoveSelect: ((i: number) => void) | null = null;
+  onMove: ((i: number, p: Pt) => void) | null = null;
   showSwitch = false;
   /** Called on a click (not a drag) with the point hit on the model (model frame), or null. */
   onPick: ((hit: [number, number, number] | null, shift: boolean) => void) | null = null;
@@ -79,7 +87,8 @@ export class Viewport {
     rim.position.set(-120, 120, 80);
     this.scene.add(rim);
     this.grid = this.makeGrid();
-    this.scene.add(this.grid, this.model, this.extras, this.marks);
+    this.scene.add(this.grid, this.model, this.extras, this.marks, this.handles);
+    this.listenMoves();
 
     // A click picks; a drag orbits.
     const el = this.renderer.domElement;
@@ -188,6 +197,7 @@ export class Viewport {
     this.lift = mm;
     for (const m of this.model.children) if (m.userData.top) m.position.z = mm;
     this.marks.position.set(this.model.position.x, this.model.position.y, this.model.position.z + mm);
+    this.handles.position.copy(this.marks.position);
     this.placeSlice();
   }
 
@@ -211,11 +221,79 @@ export class Viewport {
     this.clip.setFromNormalAndCoplanarPoint(new THREE.Vector3(...KEEP[axis]), point);
   }
 
-  /** The first point of the model under the pointer, in model frame as assembled (the Apart lift taken off). */
-  private hit(e: PointerEvent): [number, number, number] | null {
+  private aim(e: PointerEvent) {
     const r = this.renderer.domElement.getBoundingClientRect();
     const ndc = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
     this.raycaster.setFromCamera(ndc, this.camera);
+  }
+
+  /** Shows handles for moving Switches, from above with rotation locked; null puts the camera back. */
+  setMove(m: { place: Place; at: Pt[]; selected: number } | null) {
+    const was = this.move !== null;
+    this.move = m;
+    this.controls.enableRotate = !m;
+    this.clear(this.handles);
+    if (m)
+      m.at.forEach((p, i) => {
+        const on = i === m.selected;
+        const geo = new THREE.PlaneGeometry(14, 14);
+        const fill = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0x7c4dff, transparent: true, opacity: on ? 0.55 : 0.3, depthTest: false, depthWrite: false }));
+        const line = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: on ? 0xffffff : 0x7c4dff, transparent: true, depthTest: false }));
+        fill.position.set(p[0], p[1], m.place.top);
+        fill.renderOrder = 20;
+        line.renderOrder = 21;
+        fill.add(line);
+        this.handles.add(fill);
+      });
+    if (m && !was) {
+      this.before = { position: this.camera.position.clone(), target: this.controls.target.clone() };
+      this.resetView();
+    } else if (!m && this.before) {
+      this.camera.position.copy(this.before.position);
+      this.controls.target.copy(this.before.target);
+      this.before = null;
+    }
+  }
+
+  /** Caught on the way down to the canvas, so a drag on a handle never reaches the orbit controls. */
+  private listenMoves() {
+    const el = this.renderer.domElement;
+    let drag: { i: number; id: number; grab: Pt } | null = null;
+    const spot = (e: PointerEvent): Pt | null => {
+      if (!this.move) return null;
+      this.aim(e);
+      const z = this.handles.position.z + this.move.place.top;
+      const p = this.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 0, 1), -z), new THREE.Vector3());
+      return p && [p.x - this.handles.position.x, p.y - this.handles.position.y];
+    };
+    this.host.addEventListener("pointerdown", (e) => {
+      const p = e.button === 0 && e.isPrimary ? spot(e) : null;
+      if (!p || !this.move) return;
+      const i = this.move.at.findIndex((a) => Math.abs(a[0] - p[0]) <= 7.5 && Math.abs(a[1] - p[1]) <= 7.5);
+      if (i < 0) return;
+      const a = this.move.at[i];
+      drag = { i, id: e.pointerId, grab: [a[0] - p[0], a[1] - p[1]] };
+      el.setPointerCapture(e.pointerId);
+      e.stopPropagation();
+      this.onMoveSelect?.(i);
+    }, true);
+    this.host.addEventListener("pointermove", (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      e.stopPropagation();
+      const p = spot(e);
+      if (p) this.onMove?.(drag.i, [p[0] + drag.grab[0], p[1] + drag.grab[1]]);
+    }, true);
+    for (const end of ["pointerup", "pointercancel"] as const)
+      this.host.addEventListener(end, (e) => {
+        if (!drag || e.pointerId !== drag.id) return;
+        drag = null;
+        e.stopPropagation();
+      }, true);
+  }
+
+  /** The first point of the model under the pointer, in model frame as assembled (the Apart lift taken off). */
+  private hit(e: PointerEvent): [number, number, number] | null {
+    this.aim(e);
     // The raycaster ignores clipping: skip what the slice hides.
     const first = this.raycaster
       .intersectObjects(this.model.children, true)
@@ -334,7 +412,7 @@ export class Viewport {
     const r = Math.max(size.x, size.y, size.z * 1.4, 24);
     const target = box.getCenter(new THREE.Vector3());
     this.controls.target.copy(target);
-    this.camera.position.copy(target).add(new THREE.Vector3(0.75 * r, -2.1 * r, 1.65 * r));
+    this.camera.position.copy(target).add(this.move ? new THREE.Vector3(0, -0.003 * r, 2.8 * r) : new THREE.Vector3(0.75 * r, -2.1 * r, 1.65 * r));
     this.framedSize = size.length();
   }
 

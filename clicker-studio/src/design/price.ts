@@ -10,9 +10,9 @@ export type PriceLine = { label: string; amount: number };
 /** True for the kinds whose keys share one cap (a split model's top half is one). */
 export const sharedCap = (d: Design) => d.kind === "cap" || d.kind === "picture" || d.kind === "model" || d.kind === "split";
 
-/** Switches in a Design: one per key, or under a shared cap the forced count, else what the last build placed. */
+/** Switches in a Design: one per key, or under a shared cap the forced count, else what the last build placed (pinned spots leave the count to the build). */
 export function switchesOf(d: Design): number {
-  return sharedCap(d) ? d.cap.switches || d.placedSwitches || 1 : d.keys.length;
+  return sharedCap(d) ? (d.cap.spots ? 0 : d.cap.switches) || d.placedSwitches || 1 : d.keys.length;
 }
 
 export function priceLines(d: Design): PriceLine[] {

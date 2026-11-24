@@ -3,7 +3,7 @@
 Large clickers wobble on one MX switch. The cap is a lever on its stem: a press far from the switch creates a moment that pushes the stem rails against the housing, so the key binds, and the stem's one or two degrees of play lets a far edge droop about a millimetre. Keyboards solve this with a stabiliser on any key 2u (38 mm) or wider. Clickers have no stabilisers, so a shared cap (Clicker Studio's Single key, Picture and 3D model kinds) now gets more switches instead. This is in `clicker-studio/src/geometry/switches.ts`.
 
 The owner's decisions (2026-11-04):
-- The count is automatic, with an override (Auto / 1–4) in Advanced mode. Positions are never set by hand.
+- The count is automatic, with an override (Auto / 1–4) in Advanced mode. Positions are never set by hand (superseded by [ADR 0016](0016-manual-switch-positions.md): automatic stays the default, and the owner can move them).
 - **The rule:** every point of the cap must lie within the *reach* of some switch. Reach is a Fit field, default 22 mm. A 2u keycap is 38 × 19 mm, so its corner is 21.3 mm from the stem; 22 keeps the default 40 mm picture (42.4 mm with its border) on one switch. A 60 × 20 mm bar gets two, a 45 mm round cap three, a 50 mm square four.
 - Switches stay at least the *pitch* apart (Fit field, 18 mm: two 15.8 mm clip rooms plus a plate web). The housing keep-out must fit inside the cap wall and the clip room inside the Base, the same tests that already warned for one switch.
 - The first switch sits where it always did (the deepest point of the shape, or the picture's anchor) with the tight socket. The others get *extra stem fit* (Fit field, 0.1 mm), so one socket locates and the rest float, and print tolerance can't make the cap bind.

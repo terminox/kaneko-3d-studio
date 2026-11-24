@@ -4,7 +4,8 @@
 // Switch, the more the stem binds and the more the edge droops. Keyboards fix
 // this with stabilisers from 2u (38 mm) up; clickers have none, so a large
 // cap gets more Switches instead. The rule: every point of the cap must lie
-// within `fit.reach` of a Switch. Positions are chosen here, never by hand.
+// within `fit.reach` of a Switch. Positions are chosen here
+// unless the owner pinned them (ADR 0016).
 //
 // The work runs on a small raster (0.5 mm pixels) of the cap and Base
 // outlines, so it costs two cheap manifold ops and some typed-array loops.
@@ -12,16 +13,15 @@ import type { CrossSection } from "./kernel.ts";
 import { offset } from "./outline.ts";
 import type { Fit } from "./switch.ts";
 import { keepOut } from "./cap.ts";
+import { maskAt, resolveSpots, type Mask, type Pt } from "./spots.ts";
 
-export type Pt = [number, number];
+export type { Mask, Pt };
+
 export type Placement = { at: Pt[]; warnings: string[] };
 
 /** Raster size, mm per pixel. */
 const PX = 0.5;
 const MAX_SWITCHES = 4;
-
-/** A bitmap over a region of the plate frame; pixel (i, j) is centred at (x0 + (i + 0.5) px, y0 + (j + 0.5) px). */
-export type Mask = { w: number; h: number; x0: number; y0: number; px: number; data: Uint8Array };
 
 /** Rasterises a CrossSection onto a grid covering `b` (plus a margin), even-odd fill. */
 export function rasterise(cs: CrossSection, b: { min: number[]; max: number[] }, px = PX): Mask {
@@ -71,11 +71,6 @@ export function erodeBox(m: Mask, half: number): Mask {
   return { ...m, data: out };
 }
 
-function at(m: Mask, p: Pt): boolean {
-  const i = Math.floor((p[0] - m.x0) / m.px), j = Math.floor((p[1] - m.y0) / m.px);
-  return i >= 0 && j >= 0 && i < m.w && j < m.h && m.data[j * m.w + i] === 1;
-}
-
 function centres(m: Mask, stride = 1): Pt[] {
   const out: Pt[] = [];
   for (let j = 0; j < m.h; j += stride) for (let i = 0; i < m.w; i += stride) if (m.data[j * m.w + i]) out.push([m.x0 + (i + 0.5) * m.px, m.y0 + (j + 0.5) * m.px]);
@@ -121,7 +116,7 @@ class Field {
     this.mean = [this.samples.reduce((s, p) => s + p[0], 0) / n, this.samples.reduce((s, p) => s + p[1], 0) / n];
   }
   isOk(p: Pt) {
-    return at(this.ok, p);
+    return maskAt(this.ok, p);
   }
   /** `p` itself when it is feasible, else the nearest feasible pixel centre (null when there is none). */
   snap(p: Pt): Pt | null {
@@ -237,16 +232,29 @@ function tidy(at: Pt[]): Pt[] {
  * Switch centres (cap-local) for a shared cap. `want` 0 picks the smallest count
  * that keeps every edge within `fit.reach`; 1–4 forces a count (falling back to
  * fewer when they don't fit). One Switch always sits at the origin: today's
- * deepest point or picture anchor.
+ * deepest point or picture anchor. `spots` the owner pinned win over both.
  */
-export function placeSwitches(outline: CrossSection, foot: CrossSection, fit: Fit, rimTop: number, want: 0 | 1 | 2 | 3 | 4): Placement {
-  if (want === 1) return { at: [[0, 0]], warnings: [] };
+export function placeSwitches(outline: CrossSection, g: SwitchGround, fit: Fit, want: 0 | 1 | 2 | 3 | 4, spots?: Pt[]): Placement {
+  if (spots?.length) {
+    const b = outline.bounds();
+    const at = resolveSpots({ ok: g.ok, pitch: fit.pitch, min: [b.min[0], b.min[1]], max: [b.max[0], b.max[1]] }, spots);
+    if (at) return { at, warnings: reachOf(edgePoints(outline), at) > fit.reach * 1.25 ? ["warn.spotsReach"] : [] };
+    const auto = placeIn(g.ok, g.inside, outline, fit, want);
+    return { at: auto.at, warnings: [...auto.warnings, "warn.spotsDropped"] };
+  }
+  return placeIn(g.ok, g.inside, outline, fit, want);
+}
+
+/** `ok`: where a Switch fits (housing inside the cap wall, pocket inside the Base). `inside`: the cap area to cover. */
+export type SwitchGround = { ok: Mask; inside: Mask };
+
+export function switchGround(outline: CrossSection, foot: CrossSection, fit: Fit, rimTop: number): SwitchGround {
   const b = foot.bounds();
   const inside = rasterise(offset(outline, -0.6), b);
   const keep = keepOut(fit).slice(rimTop).bounds();
   const capOk = erodeBox(inside, (keep.max[0] - keep.min[0]) / 2);
   const baseOk = erodeBox(rasterise(foot.offset(-1, "Round"), b), fit.clipRoom / 2);
-  return placeIn({ ...capOk, data: capOk.data.map((v, i) => v & baseOk.data[i]) }, inside, outline, fit, want);
+  return { ok: { ...capOk, data: capOk.data.map((v, i) => v & baseOk.data[i]) }, inside };
 }
 
 /**

@@ -14,6 +14,7 @@ import { changed, rerender, selectedPatches, selectionChanged, state, switchKind
 import { cartoonize, cropDialog, isSvg, loadImage, readPicture, retracePicture, retraceKeyImages } from "./picture-ui.ts";
 import { MAX_HEIGHT, TALL, colourHeight, emptyHeights, flatten, makeItPop, remapHeights, resetPatches, setColourHeight, setPatchHeights } from "../design/heights.ts";
 import { hasBigFont, importFont } from "./user-fonts.ts";
+import { switchMap } from "./switch-map.ts";
 import { orderActions } from "./order-ui.ts";
 import { SIDES, pinSide } from "../design/connectors.ts";
 
@@ -537,6 +538,7 @@ function pictureCard(): HTMLElement {
       p.useCartoon = false;
       p.palette = [];
       delete p.heights;
+      delete d().cap.spots;
       if (!isSvg(d().files[id])) {
         const r = await cropDialog(d().files[id], { x: 0, y: 0, w: 1, h: 1, rotate: 0 }, p.adjust);
         if (r) Object.assign(p, r);
@@ -706,13 +708,17 @@ function pictureCard(): HTMLElement {
 
 /* ---------- Switches under a shared cap ---------- */
 
-/** How many Switches the shared cap sits on, and (Advanced) a way to force the count. */
+/** How many Switches the shared cap sits on, where they are, and (Advanced) a way to force the count. */
 export function switchesCard(): HTMLElement | null {
   const k = d().kind;
   if (k !== "cap" && k !== "picture" && k !== "model" && k !== "split") return null;
-  const n = state.build?.switchesPerCap ?? d().placedSwitches ?? 1;
-  const note = h("p", { class: "muted", text: n === 1 ? t("switch.one") : t("switch.many").replace("{n}", String(n)) });
-  if (!adv()) return h("section", { class: "card slim" }, note);
+  const text = () => {
+    const n = state.build?.switchesPerCap ?? d().placedSwitches ?? 1;
+    if (d().cap.spots) return t("switch.pinned").replace("{n}", String(n));
+    return n === 1 ? t("switch.one") : t("switch.many").replace("{n}", String(n));
+  };
+  const note = k === "split" || d().parts === "az-set" ? h("p", { class: "muted", text: text() }) : switchMap(text);
+  if (!adv()) return k === "split" ? h("section", { class: "card slim" }, note) : section("card.switches", note);
   const options = [{ value: "0", label: t("switch.auto") }, ...[1, 2, 3, 4].map((v) => ({ value: String(v), label: String(v) }))];
   return section(
     "card.switches",
@@ -720,6 +726,7 @@ export function switchesCard(): HTMLElement | null {
       t("switch.count"),
       segmented(options, String(d().cap.switches), (v) => {
         d().cap.switches = Number(v) as Design["cap"]["switches"];
+        delete d().cap.spots;
         changed();
       }),
       t("switch.hint"),
@@ -899,7 +906,10 @@ function modelCard(): HTMLElement {
   const m = d().model;
   const card = section(
     "card.model",
-    modelUpload("🗿", (file, name) => (d().model = { file, name, width: 36, cut: 0, rotate: [0, 0, 0] })),
+    modelUpload("🗿", (file, name) => {
+      d().model = { file, name, width: 36, cut: 0, rotate: [0, 0, 0] };
+      delete d().cap.spots;
+    }),
     h("p", { class: "muted", text: t("model.hint") }),
   );
   if (!m) return card;

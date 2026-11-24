@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, test } from "bun:test";
 import { K, loadKernel, type Manifold } from "../src/geometry/kernel.ts";
 import { baseFootprint, baseJoints, baseLevels, baseSupports, buildBase, loopCentres, connectorSides } from "../src/geometry/base.ts";
 import { capOutline, centredOnSwitch } from "../src/geometry/outline.ts";
-import { placeSwitches } from "../src/geometry/switches.ts";
+import { placeSwitches, switchGround } from "../src/geometry/switches.ts";
 import type { BaseKey } from "../src/geometry/base.ts";
 import { DEFAULT_FIT } from "../src/geometry/switch.ts";
 import { newDesign, upgradeBase, type BaseOptions, type CapShape, type Connectors, type End, type Side } from "../src/design/types.ts";
@@ -190,7 +190,8 @@ describe("H-connector", () => {
     test("a cap on two switches: top and bottom on the middle, not over a switch", () => {
       const o = centredOnSwitch(capOutline("capsule", 40, 2));
       const opts = newDesign("cap").base;
-      const sw = placeSwitches(o, baseFootprint([{ at: [0, 0], outline: o }], opts, fit), fit, baseLevels(opts, fit).wallTop, 0).at;
+      const foot = baseFootprint([{ at: [0, 0], outline: o }], opts, fit);
+      const sw = placeSwitches(o, switchGround(o, foot, fit, baseLevels(opts, fit).wallTop), fit, 0).at;
       expect(sw.length).toBe(2);
       const a = multi([{ at: [0, 0], outline: o, switches: sw }], { top: "tab", bottom: "socket" });
       expectCentred(a);

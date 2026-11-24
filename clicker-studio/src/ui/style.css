@@ -231,3 +231,18 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   .stage { order: -1; height: 60vh; min-height: 360px; }
   .panel { overflow: visible; padding: 12px 16px; }
 }
+
+/* Moving Switches */
+.switch-map { display: block; width: 100%; max-height: 260px; background: var(--soft); border-radius: 10px; }
+.map-foot { fill: var(--line); }
+.map-cap { fill: var(--panel); stroke: var(--muted); stroke-width: 0.3; }
+.map-ok { fill: var(--accent); opacity: 0.22; }
+.map-mid { stroke: var(--muted); stroke-width: 0.25; fill: none; }
+.switch-handle { cursor: grab; touch-action: none; outline: none; }
+.switch-handle:active { cursor: grabbing; }
+.switch-handle rect { fill: var(--accent); fill-opacity: 0.25; stroke: var(--accent); stroke-width: 0.5; }
+.switch-handle.on rect { fill-opacity: 0.55; }
+.switch-handle:focus-visible rect { stroke: var(--ink); stroke-width: 0.9; }
+.switch-handle text { font-size: 5px; fill: var(--ink); pointer-events: none; user-select: none; }
+.switch-move { display: grid; gap: 8px; margin-top: 8px; }
+.switch-move .btn-row { align-items: center; }

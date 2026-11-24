@@ -163,6 +163,14 @@ const fixtures: Record<string, () => { design: Design; traced: Record<string, Tr
     };
     return { design: d, traced: { bar: t } };
   },
+  moved: () => {
+    // A Switch the owner moved as far right as it goes.
+    const d = newDesign("cap");
+    d.cap.shape = "circle";
+    d.cap.size = 36;
+    d.cap.spots = [[0.5, 0]];
+    return { design: d, traced: {} };
+  },
   hconn: () => {
     // H-connector, tab + socket, on a ribbed single key.
     const d = newDesign("cap");

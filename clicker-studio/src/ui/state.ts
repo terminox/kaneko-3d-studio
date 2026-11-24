@@ -35,6 +35,10 @@ export type State = {
   byColour: boolean;
   /** Patches picked in the preview, for their own height. */
   selected: Selected[];
+  /** Handles over the 3D preview, for moving Switches. */
+  moveSwitches: boolean;
+  /** The Switch the arrows and number boxes move. */
+  selectedSwitch: number;
   /** Split a model: grow a just-uploaded model to the smallest size that fits a switch, once its first build says what that is. */
   fitOnBuild: boolean;
 };
@@ -76,6 +80,8 @@ export const state: State = {
   cartoonEnabled: false,
   byColour: true,
   selected: [],
+  moveSwitches: false,
+  selectedSwitch: 0,
   fitOnBuild: false,
 };
 
@@ -182,6 +188,8 @@ export function switchKind(kind: Kind) {
   }
   state.design = d;
   state.selectedKey = 0;
+  state.moveSwitches = false;
+  state.selectedSwitch = 0;
   state.traced = {};
   state.selected = [];
 }

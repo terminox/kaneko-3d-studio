@@ -88,6 +88,8 @@ export type CapOptions = {
   border: number;
   /** Switches under a shared cap (cap, picture, model): 0 = as many as its size needs, else 1–4. */
   switches: 0 | 1 | 2 | 3 | 4;
+  /** Shared caps: Switch spots the owner pinned, as shares of the cap's bounds from its middle (y up). Absent = placed automatically. */
+  spots?: [number, number][];
 };
 
 export type BaseOptions = {

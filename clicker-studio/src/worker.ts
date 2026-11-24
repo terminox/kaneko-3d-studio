@@ -7,6 +7,7 @@ import { fontSource } from "./text/font-source.ts";
 import { platesTo3mf } from "./export/bambu.ts";
 import type { Design } from "./design/types.ts";
 import type { PatchInfo } from "./design/heights.ts";
+import type { Place } from "./geometry/spots.ts";
 import type { SplitInfo } from "./geometry/split.ts";
 import { printTemplate } from "./export/template.ts";
 import { stlZip, type StlSet } from "./export/stl.ts";
@@ -36,6 +37,7 @@ export type BuildReply = {
   keyring: Keyring | null;
   bottom: number;
   patches: PatchInfo[];
+  place: Place | null;
   split: SplitInfo | null;
   ms: number;
 };
@@ -99,6 +101,7 @@ async function runBuild() {
       keyring: r.keyring,
       bottom: r.bottom,
       patches: r.patches,
+      place: r.place ?? null,
       split: r.split ?? null,
       ms: performance.now() - t,
     };

@@ -34,6 +34,13 @@ The preview needs WebGL. For the **AI cartoon** button, copy `.env.example` to `
 
 A big cap on one switch binds when pressed off-centre and lets its far edge droop, so a shared cap (Single key, Picture, 3D model, and a split model's top half) gets as many switches as its size needs, placed automatically ([ADR 0009](../docs/adr/0009-multi-switch-shared-caps.md)). The rule follows keyboards, which stabilise any key from 2u (38 mm) up: every point of the cap must lie within the **reach** (22 mm) of a switch. A 40 mm round cap keeps one switch, a 60 × 20 mm bar gets two, a 45 mm round cap three, a 50 mm square four. Positions come from the cap's shape (`src/geometry/switches.ts`): two go on the long axis, three or four balance the area, and every spot keeps the housing inside the cap wall and the pocket inside the Base, at least the **pitch** (18 mm) apart. The first switch sits where it always did; the others get a little extra stem fit so the cap never binds on print tolerance. Simple mode shows the count; Advanced mode can force 1–4 (it falls back to as many as fit and says so) and tunes reach, pitch and extra stem fit in the Fit panel. A cap that even four switches can't cover warns. Note that each extra switch adds its actuation force: two 45 g switches press at about 90 g.
 
+**Moving switches yourself** ([ADR 0016](../docs/adr/0016-manual-switch-positions.md)), in Simple and Advanced mode, for Single key, Picture and 3D model:
+- Drag a switch on the map in the Switches card, or press **Move switches** over the preview and drag it there.
+- Arrow keys and arrow buttons move it 0.5 mm, Shift + arrow key 0.1 mm. The X and Y boxes take an exact position from the cap's middle.
+- A switch stops at the nearest spot where its housing and pocket fit and it clears the other switches.
+- The spots are saved with the Design and scale with the cap. **Back to automatic**, a new count, or a new picture or model clears them.
+- It warns when the spots leave an edge far from every switch, or when they no longer fit and placement went back to automatic.
+
 ## Split a model
 
 Upload any watertight STL or OBJ, standing the way it is pressed, and it is cut level into a working clicker, like PrintPal's "Cut Into a Model" ([research](../docs/research/printpal-fidget-clicker-maker.md), [ADR 0015](../docs/adr/0015-split-a-model.md)). The bottom half holds the switch. The top half carries the stem socket and rests 4.6 mm (one travel plus the bottom gap) above the bottom half, so none of the model is lost, and fully pressed the halves close to 0.6 mm.

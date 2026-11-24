@@ -14,6 +14,8 @@ import { emptiedLayers, emptyHeights, patchAt, resetPatchColours, samePt, setPat
 import { FILAMENTS, filamentName } from "../design/palette.ts";
 import { designColours } from "../design/price.ts";
 import type { LayerHeights } from "../design/types.ts";
+import { refreshSwitchMap, onSwitchSelected } from "./switch-map.ts";
+import { arrowKey, hasRoom, movable, moveSwitch, selectedIndex, spotsNow } from "./switch-move.ts";
 import { renderColourBar } from "./colour-bar.ts";
 
 const app = document.getElementById("app")!;
@@ -139,6 +141,7 @@ function renderStageTools() {
       (v) => {
         state.view = v;
         showModel();
+        paintMoves();
         paintHighlight();
         renderStageTools();
       },
@@ -150,6 +153,15 @@ function renderStageTools() {
           showModel();
           renderStageTools();
         }, state.showSwitch ? "ghost on" : "ghost")
+      : null,
+    canMove()
+      ? button(`✥ ${t("view.move")}`, () => {
+          state.moveSwitches = !state.moveSwitches;
+          state.selected = [];
+          selectionChanged();
+          paintMoves();
+          renderStageTools();
+        }, state.moveSwitches ? "ghost on" : "ghost")
       : null,
     button(`✂ ${t("view.slice")}`, () => {
       slice.on = !slice.on;
@@ -197,7 +209,40 @@ function paintSlice() {
   viewport.setSlice(on ? { axis, at } : null);
 }
 
+/** True when the preview can show handles for moving Switches. */
+function canMove(): boolean {
+  const place = movable();
+  return state.view !== "print" && Boolean(place && hasRoom(place));
+}
+
+/** Redraws the Switch handles, on the map and over the preview. */
+function paintMoves() {
+  refreshSwitchMap();
+  const place = movable();
+  if (!canMove()) state.moveSwitches = false;
+  if (!place || !state.moveSwitches) return viewport.setMove(null);
+  const at = spotsNow(place);
+  viewport.setMove({ place, at, selected: selectedIndex(at.length) });
+}
+
+viewport.onMoveSelect = (i) => {
+  state.selectedSwitch = i;
+  // A number box left focused would keep the arrow keys.
+  if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+  paintMoves();
+};
+viewport.onMove = moveSwitch;
+onSwitchSelected(paintMoves);
+window.addEventListener("keydown", (e) => {
+  const typing = e.target instanceof Element && e.target.closest("input, textarea, select, dialog");
+  if (state.moveSwitches && !typing) arrowKey(e);
+});
+
 function paintHint() {
+  if (state.moveSwitches && canMove()) {
+    stage.querySelector(".stage-hint")!.textContent = t("view.moveHint");
+    return;
+  }
   const assembled = state.view !== "print";
   const pickable = assembled && Boolean(state.build?.patches.length);
   const seam = assembled && Boolean(state.build?.split);
@@ -306,6 +351,7 @@ function pickSeam(hit: [number, number, number] | null) {
 
 // Click a patch to pick it; Shift-click (or Pick several) adds or removes; a click elsewhere clears.
 viewport.onPick = (hit, shiftKey) => {
+  if (state.moveSwitches) return;
   if (state.design.kind === "split") return pickSeam(hit);
   const patches = state.build?.patches ?? [];
   if (state.view === "print" || !patches.length) return;
@@ -339,10 +385,13 @@ onBuilt((r) => {
   } else {
     const before = patchKey(state.build);
     const splitBefore = splitKey(state.build);
+    const couldMove = canMove();
     state.build = r;
     state.error = "";
     state.status = "";
     showModel();
+    paintMoves();
+    if (canMove() !== couldMove) renderStageTools();
     // Keep picks whose patch still exists (a retrace rebuilds them all).
     const kept = state.selected.filter((s) => r.patches.some((p) => p.owner === s.owner && samePt(s.at, p.at)));
     // The Switch count is placed by the build; the price and order sheet read it from the Design.
@@ -391,6 +440,7 @@ subscribe((what) => {
     renderPanels();
     renderStageTools();
   }
+  paintMoves();
   scheduleBuild();
 });
 
