@@ -108,6 +108,10 @@ export type BaseOptions = {
   loopAngle: number;
   /** "angle" loop: mm along the rim from the centre line. */
   loopSlide: number;
+  /** How far up the wall the loop sits, %: 0 = flush with the underside, 100 = its top at the rim. */
+  loopHeight: number;
+  /** The height is set by hand, so a value that matches a preset still shows the slider. */
+  loopManual: boolean;
   /** Space between neighbouring keys in a Block Clicker. */
   gap: number;
   /** H-connector end on each side. */
@@ -234,6 +238,8 @@ export function newDesign(kind: Kind = "cap"): Design {
       loopThickness: 3,
       loopAngle: 90,
       loopSlide: 0,
+      loopHeight: 0,
+      loopManual: false,
       gap: 1.6,
       connectors: { left: "none", right: "none", top: "none", bottom: "none" },
       join: "rings",

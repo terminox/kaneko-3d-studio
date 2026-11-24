@@ -7,7 +7,7 @@ import { button, download, h, pickFile, segmented } from "./dom.ts";
 import { changed, rerender, save, selectedPatches, selectionChanged, state, subscribe, upgrade } from "./state.ts";
 import { Viewport } from "./viewport.ts";
 import { onBuilt, requestBuild, requestExport } from "./engine.ts";
-import { baseCard, capCard, colourCard, contentCard, fitCard, kindCard, loadCatalogs, nameField, orderCard, switchesCard, type FontInfo } from "./panels.ts";
+import { baseCard, capCard, colourCard, contentCard, fitCard, kindCard, loadCatalogs, nameField, orderCard, refreshLoopHeight, switchesCard, type FontInfo } from "./panels.ts";
 import { cartoonAvailable, retraceAll } from "./picture-ui.ts";
 import { setSnapshot } from "./order-ui.ts";
 import { emptiedLayers, emptyHeights, patchAt, resetPatchColours, samePt, setPatchColours } from "../design/heights.ts";
@@ -440,6 +440,7 @@ subscribe((what) => {
     renderPanels();
     renderStageTools();
   }
+  refreshLoopHeight();
   paintMoves();
   scheduleBuild();
 });

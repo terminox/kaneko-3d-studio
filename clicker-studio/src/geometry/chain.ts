@@ -31,7 +31,7 @@ export function chainPitch(outline: CrossSection, design: Design): number {
 /** Base options of link `i` of `n`. */
 function linkOptions(design: Design, i: number, n: number): BaseOptions {
   const base = { ...design.base, texture: "none" as const };
-  if (design.base.join !== "connector") return { ...base, loop: "both", loopHole: LINK_HOLE, connectors: NO_CONNECTORS };
+  if (design.base.join !== "connector") return { ...base, loop: "both", loopHeight: 0, loopHole: LINK_HOLE, connectors: NO_CONNECTORS };
   return { ...base, loop: "none", connectors: { ...NO_CONNECTORS, left: "tab", right: i === n - 1 ? "none" : "socket" } };
 }
 

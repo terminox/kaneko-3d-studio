@@ -2,6 +2,7 @@
 // (geometry only) or rerender() (panels change shape too).
 import { newSplit, type CapShape, type Decoration, type End, type Design, type Key, type Kind, type LayerHeights, type Layout, type Loop, type ModelOptions, type PartsMode, type SplitOptions, type Texture } from "../design/types.ts";
 import { DEFAULT_FIT, type Fit } from "../geometry/switch.ts";
+import { loopLift, loopRange } from "../geometry/levels.ts";
 import type { SplitInfo } from "../geometry/split.ts";
 import { layoutKeyCount } from "../geometry/layout.ts";
 import { SYMBOLS } from "../geometry/symbols.ts";
@@ -1226,7 +1227,68 @@ function loopAngleRow(b: Design["base"]): HTMLElement {
   );
 }
 
+const LOOP_HEIGHTS = [0, 25, 50, 75, 100] as const;
+
+let syncLoopHeight: (() => void) | null = null;
+
+/** Brings the loop's height in mm up to date after a change elsewhere (the wall, the Fit). */
+export function refreshLoopHeight() {
+  syncLoopHeight?.();
+}
+
+/** How far up the Base wall the keyring loop sits: five presets, or by hand in % or mm. */
+function loopHeightRow(b: Design["base"]): HTMLElement {
+  const preset = LOOP_HEIGHTS.find((v) => v === b.loopHeight);
+  const picked = b.loopManual || preset === undefined ? "manual" : (`${preset}` as const);
+  const hint = h("p", { class: "muted", text: t("loop.height.hint") });
+  const showHint = () => { hint.hidden = loopLift(b, d().fit) <= 0; };
+  const wrap = h("div", {},
+    field(
+      t("loop.height"),
+      segmented(
+        [...LOOP_HEIGHTS.map((v) => ({ value: `${v}` as `${typeof v}` | "manual", label: t(`loop.height.${v}`) })), { value: "manual" as const, label: t("loop.height.manual") }],
+        picked,
+        (v) => {
+          b.loopManual = v === "manual";
+          if (v !== "manual") b.loopHeight = Number(v);
+          rerender();
+        },
+        "wrap small",
+      ),
+    ),
+  );
+  syncLoopHeight = showHint;
+  if (picked === "manual") {
+    const round = (v: number) => Math.round(v * 10) / 10;
+    const percent = slider("loop.height.percent", round(b.loopHeight), 0, 100, 1, "%", (v) => {
+      b.loopHeight = v;
+      changed();
+    });
+    const mm = h("input", { class: "num", attrs: { type: "number", min: 0, step: 0.1 } });
+    const sync = () => {
+      for (const i of percent.querySelectorAll("input")) i.value = String(round(b.loopHeight));
+      mm.max = String(round(loopRange(b, d().fit)));
+      mm.value = String(round(loopLift(b, d().fit)));
+      showHint();
+    };
+    mm.addEventListener("change", () => {
+      const range = loopRange(b, d().fit);
+      if (mm.value !== "" && range > 0) {
+        b.loopHeight = Math.min(100, Math.max(0, (Number(mm.value) / range) * 100));
+        changed();
+      }
+      sync();
+    });
+    syncLoopHeight = sync;
+    wrap.append(percent, h("div", { class: "slider" }, h("div", { class: "slider-head" }, h("span", { text: t("loop.height.mm") }), h("span", { class: "unit" }, mm, "mm"))));
+  }
+  wrap.append(hint);
+  syncLoopHeight();
+  return wrap;
+}
+
 export function baseCard(): HTMLElement | null {
+  syncLoopHeight = null;
   if (d().parts === "caps" || d().parts === "az-set" || d().kind === "split") return null;
   const b = d().base;
   const card = section("card.base");
@@ -1348,6 +1410,7 @@ export function baseCard(): HTMLElement | null {
       ),
     );
     if (b.loop === "angle") add(card, loopAngleRow(b));
+    if (b.loop !== "none") add(card, loopHeightRow(b));
     if (b.loop === "angle" || (adv() && b.loop !== "none"))
       add(card, 
         slider("loop.hole", b.loopHole, 2, 6, 0.1, "mm", (v) => {

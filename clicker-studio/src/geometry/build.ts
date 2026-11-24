@@ -4,7 +4,8 @@ import type { Mesh } from "@mm/pipeline/mesh.ts";
 import { K, type CrossSection, type Manifold } from "./kernel.ts";
 import { capOutline, centredOnSwitch, deepestPoint, offset } from "./outline.ts";
 import { buildCap, skirtExposed, type Solid } from "./cap.ts";
-import { baseFootprint, baseJoints, baseLevels, baseSupports, buildBase, connectorSides, keySwitches, loopCentres, type BaseKey } from "./base.ts";
+import { baseFootprint, baseJoints, baseSupports, buildBase, baseLoops, keySwitches, type BaseKey } from "./base.ts";
+import { baseLevels, loopLift } from "./levels.ts";
 import { H, holeCentre, shortTongue, sideDir, switchClash, type Joint } from "./connector.ts";
 import { placeSwitches, switchGround } from "./switches.ts";
 import type { Place, Pt } from "./spots.ts";
@@ -230,8 +231,8 @@ export async function build(design: Design, assets: Assets): Promise<BuildResult
     const room = K().CrossSection.union(baseKeys.flatMap(keySwitches).map((s) => K().CrossSection.square([fit.clipRoom, fit.clipRoom], true).translate(s)));
     if (room.subtract(inner).area() > 0.01) warnings.push("warn.pocket");
   }
-  const loops = foot && wantBase && design.kind !== "fluted" ? loopCentres(foot, base.loop, base.loopHole / 2, connectorSides(base), base.loopAngle, base.loopSlide) : [];
-  const keyring = keyringPoint(loops, joints, foot, bottom, base.loop === "angle" ? base.loopAngle : null);
+  const loops = foot && wantBase && design.kind !== "fluted" ? baseLoops(foot, base) : [];
+  const keyring = keyringPoint(loops, joints, foot, bottom, loopLift(base, fit), base.loop === "angle" ? base.loopAngle : null);
   if (patches.some((p) => p.h > TALL)) warnings.push("warn.tall");
   if (caps.length && wantCaps && wantBase && design.kind !== "model") {
     const rimTop = baseLevels(base, fit).wallTop;
@@ -290,18 +291,18 @@ function capPatches(c: CapSpec, top: number, owner: number, def: number, inlay: 
 }
 
 function supportParts(volumes: Manifold[], color: string, mesh: (m: Manifold) => Mesh): Part[] {
-  return volumes.map((m, i) => ({ name: `Tab support ${i + 1}`, color, mesh: mesh(m), role: "support" as const }));
+  return volumes.map((m, i) => ({ name: `Support ${i + 1}`, color, mesh: mesh(m), role: "support" as const }));
 }
 
 /** A keyring loop if there is one, else the first tab hole (a fluted chain's first link). */
-function keyringPoint(loops: [number, number][], joints: Joint[], foot: CrossSection | null, bottom: number, angle: number | null): Keyring | null {
+function keyringPoint(loops: [number, number][], joints: Joint[], foot: CrossSection | null, bottom: number, lift: number, angle: number | null): Keyring | null {
   if (loops.length) {
     const b = foot?.bounds();
     const [cx, cy] = b ? [(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2] : [0, 0];
     const [x, y] = loops[0];
     const r = ((angle ?? 0) * Math.PI) / 180;
     const dir: [number, number] = angle !== null ? [Math.cos(r), Math.sin(r)] : Math.abs(x - cx) > 1 ? [Math.sign(x - cx), 0] : [0, Math.sign(y - cy) || -1];
-    return { at: loops[0], dir, z: bottom + 1.5 };
+    return { at: loops[0], dir, z: bottom + lift + 1.5 };
   }
   const tab = joints.find((j) => j.role === "tab");
   return tab ? { at: holeCentre(tab), dir: sideDir(tab.side), z: bottom + (H.tabZ[0] + H.tabZ[1]) / 2 } : null;

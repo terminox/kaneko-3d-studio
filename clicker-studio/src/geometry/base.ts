@@ -3,7 +3,8 @@
 import type { BaseOptions, Loop } from "../design/types.ts";
 import { K, type CrossSection, type Manifold } from "./kernel.ts";
 import { circle, coverWith, offset, roundConcave } from "./outline.ts";
-import { capHeights, type Fit } from "./switch.ts";
+import type { Fit } from "./switch.ts";
+import { baseLevels, loopLift } from "./levels.ts";
 import { slab } from "./cap.ts";
 import { applyTexture } from "./texture.ts";
 import { connectorJoints, connectorRoles, padOutline, padSolid, pinSolid, slitCut, socketCut, supportVolume, tabSolid, tongueSlab, type Joint, type Side } from "./connector.ts";
@@ -16,11 +17,8 @@ export function keySwitches(k: BaseKey): [number, number][] {
   return (k.switches ?? [[0, 0]]).map((s) => [k.at[0] + s[0], k.at[1] + s[1]]);
 }
 
-export function baseLevels(opts: BaseOptions, fit: Fit) {
-  const bottom = -(fit.plate + fit.under + opts.floor);
-  const wallTop = capHeights(fit).skirtBottom + opts.rimRise;
-  return { bottom, wallTop };
-}
+/** Outer radius of a keyring loop. */
+const loopR = (opts: BaseOptions) => opts.loopHole / 2 + 2.4;
 
 /** The Base's footprint for a set of keys. */
 export function baseFootprint(keys: BaseKey[], opts: BaseOptions, fit: Fit): CrossSection {
@@ -65,6 +63,11 @@ export function loopCentres(foot: CrossSection, loop: Loop, holeR: number, taken
   return pts;
 }
 
+/** The keyring loop centres of a Base. */
+export function baseLoops(foot: CrossSection, opts: BaseOptions): [number, number][] {
+  return loopCentres(foot, opts.loop, opts.loopHole / 2, connectorSides(opts), opts.loopAngle, opts.loopSlide);
+}
+
 const SIDE_ANGLE: Record<Side, number> = { right: 0, top: 90, left: 180, bottom: 270 };
 
 function angleGap(a: number, b: number): number {
@@ -91,13 +94,17 @@ export function baseJoints(keys: BaseKey[], opts: BaseOptions, fit: Fit, footpri
   return connectorJoints(footprint ?? baseFootprint(keys, opts, fit), opts);
 }
 
-/** Support-enforcer volumes under a Base's tabs, for the slicer. */
+/** Support-enforcer volumes under a Base's tabs and raised keyring loops, for the slicer. */
 export function baseSupports(keys: BaseKey[], opts: BaseOptions, fit: Fit, footprint?: CrossSection): Manifold[] {
   const foot = footprint ?? baseFootprint(keys, opts, fit);
   const { bottom } = baseLevels(opts, fit);
-  return baseJoints(keys, opts, fit, foot)
+  const tabs = baseJoints(keys, opts, fit, foot)
     .filter((j) => j.role === "tab")
     .map((j) => supportVolume(j, bottom));
+  const lift = loopLift(opts, fit);
+  if (lift <= 0) return tabs;
+  const loops = baseLoops(foot, opts).map((c) => slab(circle(loopR(opts), c).subtract(foot), bottom, bottom + lift + opts.loopThickness));
+  return [...tabs, ...loops];
 }
 
 /** What one Switch needs cut out of the body under it: the clip room below the plate, down to `floorZ`, and the plate cutout. */
@@ -114,10 +121,11 @@ export function buildBase(keys: BaseKey[], opts: BaseOptions, fit: Fit, footprin
   let body = slab(foot, bottom, wallTop);
   if (opts.texture !== "none") body = applyTexture(body, foot, bottom, wallTop, opts.texture, opts.textureDepth);
 
-  // Keyring loops sit flush with the bottom.
+  // Keyring loops, flush with the bottom or raised up the wall.
   const holeR = opts.loopHole / 2;
-  const loops = loopCentres(foot, opts.loop, holeR, connectorSides(opts), opts.loopAngle, opts.loopSlide);
-  for (const c of loops) body = body.add(slab(circle(holeR + 2.4, c), bottom, bottom + opts.loopThickness));
+  const loops = baseLoops(foot, opts);
+  const loopZ = bottom + loopLift(opts, fit);
+  for (const c of loops) body = body.add(slab(circle(loopR(opts), c), loopZ, loopZ + opts.loopThickness));
 
   const joints = baseJoints(keys, opts, fit, foot);
   const tabs = joints.filter((j) => j.role === "tab");

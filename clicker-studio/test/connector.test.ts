@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { K, loadKernel, type Manifold } from "../src/geometry/kernel.ts";
-import { baseFootprint, baseJoints, baseLevels, baseSupports, buildBase, loopCentres, connectorSides } from "../src/geometry/base.ts";
+import { baseFootprint, baseJoints, baseSupports, buildBase, loopCentres, connectorSides } from "../src/geometry/base.ts";
+import { baseLevels } from "../src/geometry/levels.ts";
 import { capOutline, centredOnSwitch } from "../src/geometry/outline.ts";
 import { placeSwitches, switchGround } from "../src/geometry/switches.ts";
 import type { BaseKey } from "../src/geometry/base.ts";

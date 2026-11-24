@@ -71,6 +71,12 @@ const fixtures: Record<string, () => { design: Design; traced: Record<string, Tr
     d.base.loopSlide = 2;
     return { design: d, traced: {} };
   },
+  loopTop: () => {
+    const d = newDesign("cap");
+    d.base.loop = "both";
+    d.base.loopHeight = 100;
+    return { design: d, traced: {} };
+  },
   row: () => {
     const d = newDesign("row");
     d.keys = [..."มิยู"].map((c) => ({ ...d.keys[0], deco: { type: "text", text: c, font: "Kanit-700" } }));
@@ -283,8 +289,8 @@ const fixtures: Record<string, () => { design: Design; traced: Record<string, Tr
 };
 
 /**
- * Support must print exactly where H-connector tabs ask for it: some support on
- * every plate with a tab, every support move inside a tab's enforcer (plus the
+ * Support must print exactly where H-connector tabs and raised keyring loops ask for it:
+ * some support on every plate with one, every support move inside an enforcer (plus the
  * slicer's few mm of support base), and none on other plates.
  */
 function supportProblems(plates: Plate[], sliceDir: string): string[] {
@@ -303,10 +309,10 @@ function supportProblems(plates: Plate[], sliceDir: string): string[] {
       }
       return { x0: x0 - margin, x1: x1 + margin, y0: y0 - margin, y1: y1 + margin };
     });
-    if (!boxes.length && moves.length) problems.push(`plate ${i + 1}: ${moves.length} support moves but no tab`);
-    if (boxes.length && !moves.length) problems.push(`plate ${i + 1}: tabs but no support printed`);
+    if (!boxes.length && moves.length) problems.push(`plate ${i + 1}: ${moves.length} support moves but no enforcer`);
+    if (boxes.length && !moves.length) problems.push(`plate ${i + 1}: enforcers but no support printed`);
     const stray = moves.filter(([x, y]) => !boxes.some((b) => x >= b.x0 && x <= b.x1 && y >= b.y0 && y <= b.y1));
-    if (boxes.length && stray.length) problems.push(`plate ${i + 1}: ${stray.length} support moves away from the tabs, e.g. ${stray[0].map((n) => n.toFixed(1)).join(",")}`);
+    if (boxes.length && stray.length) problems.push(`plate ${i + 1}: ${stray.length} support moves away from the enforcers, e.g. ${stray[0].map((n) => n.toFixed(1)).join(",")}`);
   });
   return problems;
 }
